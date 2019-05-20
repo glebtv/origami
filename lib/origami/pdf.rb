@@ -779,16 +779,12 @@ module Origami
             end
         end
 
-        #
-        # Returns the final binary representation of the current document.
-        #
-        def output(params = {})
-
+        def default_output(params = {})
             has_objstm = self.indirect_objects.any?{|obj| obj.is_a?(ObjectStream)}
 
             options =
             {
-                rebuild_xrefs: true,
+                rebuild_xrefs: true, # this is coming in false....
                 noindent: false,
                 obfuscate: false,
                 use_xrefstm: has_objstm,
@@ -811,15 +807,23 @@ module Origami
             prev_xref_offset = nil
             xrefstm_offset = nil
 
-            # Header
             bin = ""
-            bin << @header.to_s
 
-            # For each revision
-            @revisions[0, options[:up_to_revision]].each do |rev|
+            start_revision = params[:start_revision] || 0
+
+            # this is hit
+            if start_revision == 0
+              bin << @header.to_s
+            else
+              bin << params[:original_content]
+            end
+
+            @revisions[start_revision, options[:up_to_revision]].each_with_index do |rev, index_no|
+                current_revision = start_revision + index_no
 
                 # Create xref table/stream.
                 if options[:rebuild_xrefs] == true
+                    # this is true
                     lastno_table, lastno_stm = 0, 0
                     brange_table, brange_stm = 0, 0
 
@@ -850,9 +854,22 @@ module Origami
 
                 # For each object, in number order
                 # Move any XRefStream to the end of the revision.
-                objset.sort_by {|obj| [obj.is_a?(XRefStream) ? 1 : 0, obj.no, obj.generation] }
-                      .each do |obj|
+                #
+                # SORT PARAMS:
+                # the first is to make sure they fall to the end,
+                # obj no,
+                # unsure of what generation is (example is 0)
+                objset.sort_by do |obj|
+                  first_key = if obj.is_a?(XRefStream)
+                    1
+                  elsif obj.is_a?(Catalog)
+                    0 # -1
+                  else
+                    0
+                  end
 
+                  [first_key, obj.no, obj.generation]
+                end.each do |obj|
                     # Ensures that every object has a unique reference number.
                     # Duplicates should never happen in a well-formed revision and will cause breakage of xrefs.
                     if previous_obj and previous_obj.reference == obj.reference
@@ -862,8 +879,11 @@ module Origami
                     end
 
                     # Create xref entry.
+                    # this is false in our examples so this branch will
+                    # get skipped
+                    #
+                    # BRANCH AA
                     if options[:rebuild_xrefs] == true
-
                         # Adding subsections if needed
                         if options[:use_xreftable] and (obj.no - lastno_table).abs > 1
                             xrefsection << XRef::Subsection.new(brange_table, xrefs_table)
@@ -897,7 +917,6 @@ module Origami
                     end
 
                     if obj.parent == obj or not obj.parent.is_a?(ObjectStream)
-
                         # Finalize XRefStm
                         if options[:rebuild_xrefs] == true and options[:use_xrefstm] == true and obj == xrefstm
                             xrefstm_offset = bin.size
@@ -913,7 +932,12 @@ module Origami
                             xrefstm.Index << brange_stm << xrefs_stm.size
 
                             xrefstm.dictionary = xrefstm.dictionary.merge(trailer_dict)
-                            xrefstm.Prev = prev_xref_offset
+                            xrefstm.Prev = find_append_only_offset(
+                              prev_xref_offset,
+                              index_no,
+                              params[:original_content]
+                            )
+
                             rev.trailer.dictionary = nil
 
                             add_to_revision(xrefstm, rev)
@@ -929,11 +953,21 @@ module Origami
                             bin << obj.to_s
                         end
                     end
-                end # end each object
+                end
 
                 rev.trailer ||= Trailer.new
 
-                # XRef table
+                if params[:append_only] && index_no == 0
+                  original_content = params[:original_content]
+                  start_trailer_location = original_content.rindex("startxref")
+                  end_trailer_location = original_content.rindex("%%EOF")
+                  range = (start_trailer_location + 11)..(end_trailer_location - 3)
+                  previous_trailer_location = original_content[range]
+
+                  rev.trailer.Prev = previous_trailer_location.to_i
+                end
+
+
                 if options[:rebuild_xrefs] == true
 
                     if options[:use_xreftable] == true
@@ -944,7 +978,11 @@ module Origami
 
                         rev.trailer.dictionary = trailer_dict
                         rev.trailer.Size = objset.size + 1
-                        rev.trailer.Prev = prev_xref_offset
+                        rev.trailer.Prev = find_append_only_offset(
+                          prev_xref_offset,
+                          index_no,
+                          params[:original_content]
+                        )
 
                         rev.trailer.XRefStm = xrefstm_offset if options[:use_xrefstm] == true
                     end
@@ -958,9 +996,60 @@ module Origami
                 bin << rev.xreftable.to_s if options[:use_xreftable] == true
                 bin << (options[:obfuscate] == true ? rev.trailer.to_obfuscated_str : rev.trailer.to_s)
 
-            end # end each revision
+            end
 
             bin
+        end
+
+        def find_append_only_offset(initial=nil, rev_count, original_content)
+          # because this could be used in a few revisions we want to ensure
+          # that it will only output for the first revision after the append
+          # and then error on subsequent revisions
+          return nil if initial != nil || rev_count != 0 || revisions.length == 1
+
+          start_trailer_location = original_content.rindex("startxref")
+          end_trailer_location = original_content.rindex("%%EOF")
+          range = (start_trailer_location + 11)..(end_trailer_location - 3)
+          previous_trailer_location = original_content[range]
+
+          previous_trailer_location.to_i
+        end
+
+        #
+        # Returns the final binary representation of the current document.
+        #
+        def output(params = {})
+            # if this is signed it cannot be modified and must be appended
+            # to
+            # if @parser.options[:append_only] || self.signed?
+            if self.originally_signed?
+              append_only_output(params)
+            else
+              default_output(params)
+            end
+        end
+
+        def append_only_output(params = {})
+          options = params.merge(
+            append_only: true,
+            original_content: original_content,
+            start_revision: number_of_original_revisions # since revisions is an array we are off by 1
+          )
+
+          # this will get the original string of the file, since it's append
+          # only nothing about this content can change in the least
+          return default_output(options)
+        end
+
+        def number_of_original_revisions
+          @_number_of_original_revisions ||= @parser.send(
+            :instance_variable_get,
+            :@initial_revision_count
+          )
+        end
+
+        def original_content
+          @parser.send(:instance_variable_get, :@data).string
         end
 
         #
@@ -1050,6 +1139,16 @@ module Origami
             self
         end
 
+        def signed_bytesize_offset
+          # at times we need to calculate the difference between the actual
+          # bytesize of the first revisions and the computed size of the
+          # initial revisions
+          #
+          # this difference than will need to be subtracted on any append
+          # operations that build their byte references from the byte reference
+          # of the first revisions
+        end
+
         #
         # Build a xref section from a set of objects.
         #
@@ -1087,9 +1186,27 @@ module Origami
         end
 
         def get_object_offset(no,generation) #:nodoc:
-            objectoffset = @header.to_s.size
+            objectoffset = 0
 
-            @revisions.each do |revision|
+            if originally_signed? # @parser.options[:append_only]
+              start_revision = @parser.send(
+                :instance_variable_get,
+                :@initial_revision_count
+              )
+
+              original_file = @parser.
+                send(:instance_variable_get, :@data).
+                string
+
+              objectoffset += original_file.bytesize
+            else
+              objectoffset = @header.to_s.size
+              start_revision = 0
+            end
+
+#            @revisions.each do |revision|
+
+            @revisions[start_revision, @revisions.length].each do |revision|
                 revision.objects.sort.each do |object|
                     if object.no == no and object.generation == generation then return objectoffset
                     else

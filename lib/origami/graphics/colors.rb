@@ -51,6 +51,7 @@ module Origami
             end
 
             module Space
+                INDEXED       = :Indexed
                 DEVICE_GRAY   = :DeviceGray
                 DEVICE_RGB    = :DeviceRGB
                 DEVICE_CMYK   = :DeviceCMYK
@@ -130,7 +131,7 @@ module Origami
 
         class State
             def set_stroking_color(color, space = @stroking_color_space)
-                check_color(space, color) 
+                check_color(space, color)
 
                 @stroking_colorspace = space
                 @stroking_color = color
@@ -162,7 +163,7 @@ module Origami
                 when Color::Space::DEVICE_GRAY, Color::Space::DEVICE_RGB, Color::Space::DEVICE_CMYK
                 else
                    raise InvalidColorError, "Unknown color space #{space}"
-                end 
+                end
             end
 
             def check_color(space, color)

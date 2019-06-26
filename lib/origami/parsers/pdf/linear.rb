@@ -31,7 +31,7 @@ module Origami
         class LinearParser < Parser
             def parse(stream)
                 super
-            
+
                 pdf = parse_initialize
 
                 #
@@ -53,6 +53,8 @@ module Origami
                         break
                     end
                 end
+
+                @initial_revision_count = pdf.revisions.length
 
                 pdf.loaded!
 

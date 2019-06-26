@@ -72,13 +72,23 @@ module Origami
             @instructions
         end
 
+        def draw_layer(name)
+          load!
+
+          @instructions << PDF::Instruction.new('q')
+          @instructions << PDF::Instruction.new('cm', 1, 0, 0, 1, 0, 0)
+          @instructions << PDF::Instruction.new('Do', name)
+          @instructions << PDF::Instruction.new('Q')
+        end
+
         def draw_image(name, attr = {})
             load!
 
             x, y = attr[:x], attr[:y]
+            w, h = attr[:width], attr[:height]
 
             @instructions << PDF::Instruction.new('q')
-            @instructions << PDF::Instruction.new('cm', (attr[:w] || 300), 0, 0, (attr[:h] || 300), x, y)
+            @instructions << PDF::Instruction.new('cm', w || 300, 0, 0, h || 300, x, y)
             @instructions << PDF::Instruction.new('Do', name)
             @instructions << PDF::Instruction.new('Q')
         end
@@ -667,7 +677,7 @@ module Origami
                 raise ArgumentError, "Missing file format" if format.nil?
                 case format.downcase
                 when 'jpg', 'jpeg', 'jpe', 'jif', 'jfif', 'jfi'
-                    image.setFilter :DCTDecode
+                    image.setFilter [:DCTDecode]
                     image.encoded_data = data
 
                 when 'jp2','jpx','j2k','jpf','jpm','mj2'
@@ -677,6 +687,11 @@ module Origami
                 when '.b2', 'jbig', 'jbig2'
                     image.setFilter :JBIG2Decode
                     image.encoded_data = data
+                when '.png', 'png'
+                  # unsure of what to set here but this is what is in the docs
+                  # image.setFilter :LZWDecode
+
+                  # skip and handle in other code
                 else
                     raise NotImplementedError, "Unknown file format: '#{format}'"
                 end

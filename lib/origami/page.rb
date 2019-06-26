@@ -448,7 +448,7 @@ module Origami
             field   :S,                 :Type => Name, :Default => SOLID
             field   :D,                 :Type => Array.of(Integer)
         end
-             
+
         #
         # Box color information dictionary associated to a Page.
         #
@@ -470,8 +470,8 @@ module Origami
             field   :Type,    :Type => Name, :Default => :NavNode
             field   :NA,      :Type => Dictionary # Next action
             field   :PA,      :Type => Dictionary # Prev action
-            field   :Next,    :Type => NavigationNode 
-            field   :Prev,    :Type => NavigationNode 
+            field   :Next,    :Type => NavigationNode
+            field   :Prev,    :Type => NavigationNode
             field   :Dur,     :Type => Number
         end
 
@@ -590,7 +590,13 @@ module Origami
 
             annotations.each do |annot|
                 annot.solve[:P] = self if self.indirect?
+
+
                 self.Annots << annot
+                # if annot.is_a?(Annotation)
+#                  self.Annots << annot.reference
+#                else
+#                end
             end
         end
 

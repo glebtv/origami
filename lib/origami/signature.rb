@@ -103,13 +103,23 @@ module Origami
 
             digsig = Signature::DigitalSignature.new.set_indirect(true)
 
+            if self.originally_signed?
+              add_to_revision(digsig, revisions.last)
+            end
+
             if annotation.nil?
                 annotation = Annotation::Widget::Signature.new
-                annotation.Rect = Rectangle[:llx => 0.0, :lly => 0.0, :urx => 0.0, :ury => 0.0]
+                annotation.Rect = Rectangle[
+                  :llx => 0.0,
+                  :lly => 0.0,
+                  :urx => 0.0,
+                  :ury => 0.0
+                ]
             end
 
             annotation.V = digsig
             add_fields(annotation)
+
             self.Catalog.AcroForm.SigFlags =
               InteractiveForm::SigFlags::SIGNATURES_EXIST | InteractiveForm::SigFlags::APPEND_ONLY
 
@@ -148,11 +158,23 @@ module Origami
             #
             rebuild_dummy_xrefs
 
-            sig_offset = get_object_offset(digsig.no, digsig.generation) + digsig.signature_offset
+            file_data = output
 
-            digsig.ByteRange[0] = 0
-            digsig.ByteRange[1] = sig_offset
-            digsig.ByteRange[2] = sig_offset + digsig.Contents.to_s.bytesize
+            object_start = get_object_offset(digsig.no, digsig.generation)
+
+            # the addition of 9 is to adjust for string length of 'Contents <'
+            if self.originally_signed?
+              sig_offset = file_data.index("Contents <", object_start) + 9
+              sig_offset = file_data[0..(sig_offset)].bytesize # im off by 1 it seems for unknown reason
+              digsig.ByteRange[0] = 0
+              digsig.ByteRange[1] = sig_offset - 1
+              digsig.ByteRange[2] = sig_offset + digsig.Contents.to_s.bytesize - 1
+            else
+              sig_offset = get_object_offset(digsig.no, digsig.generation) + digsig.signature_offset
+              digsig.ByteRange[0] = 0
+              digsig.ByteRange[1] = sig_offset
+              digsig.ByteRange[2] = sig_offset + digsig.Contents.to_s.bytesize
+            end
 
             until digsig.ByteRange[3] == filesize - digsig.ByteRange[2]
                 digsig.ByteRange[3] = filesize - digsig.ByteRange[2]
@@ -254,6 +276,15 @@ module Origami
             rescue InvalidReferenceError
                 false
             end
+        end
+
+        def originally_signed?
+          if @_originally_signed != nil
+            @_originally_signed
+          else
+            @_originally_signed = self.signed?
+            @_originally_signed
+          end
         end
 
         #

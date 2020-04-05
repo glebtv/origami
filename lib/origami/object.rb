@@ -592,7 +592,7 @@ module Origami
 
         class << self
 
-            def typeof(stream) #:nodoc:
+            def typeof(stream, flag = false) #:nodoc:
                 scanner = Parser.init_scanner(stream)
                 scanner.skip(REGEXP_WHITESPACES)
 

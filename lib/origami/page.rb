@@ -448,7 +448,7 @@ module Origami
             field   :S,                 :Type => Name, :Default => SOLID
             field   :D,                 :Type => Array.of(Integer)
         end
-             
+
         #
         # Box color information dictionary associated to a Page.
         #
@@ -470,8 +470,8 @@ module Origami
             field   :Type,    :Type => Name, :Default => :NavNode
             field   :NA,      :Type => Dictionary # Next action
             field   :PA,      :Type => Dictionary # Prev action
-            field   :Next,    :Type => NavigationNode 
-            field   :Prev,    :Type => NavigationNode 
+            field   :Next,    :Type => NavigationNode
+            field   :Prev,    :Type => NavigationNode
             field   :Dur,     :Type => Number
         end
 
@@ -544,7 +544,8 @@ module Origami
 
         def initialize(hash = {}, parser = nil)
             super(hash, parser)
-
+            @graphics_manager = GraphicsManager.new
+            @instructions = nil
             set_indirect(true)
         end
 
@@ -571,7 +572,11 @@ module Origami
 
             case contents
             when Stream then yield(contents)
-            when Array then contents.each { |stm| yield(stm.solve) }
+            when Array then contents.each do |stm|
+                  an_o = stm.solve
+                  an_o = ContentStream.new( an_o.data, an_o.dictionary ) if an_o.is_a?( Origami::Stream )
+                  yield( an_o )
+               end
             end
         end
 
@@ -613,6 +618,59 @@ module Origami
         #
         def annotations
             self.each_annotation.to_a
+        end
+
+        def instructions
+            load!
+
+            @instructions
+        end
+
+      def to_canvas canvas
+         instructions.each do |inst|
+             inst.apply( self, canvas )
+         end
+
+         self.Annots.map{|ann| ann.solve }.each do |ann|
+            canvas.add_annotation(
+               :text => ann.T.strip,
+               :bottom_left => Point.new( ann.Rect[0], ann.Rect[1] ),
+               :top_right => Point.new( ann.Rect[2], ann.Rect[3] ),
+               :ref => ann.no,
+               :gen => ann.generation
+            )
+         end
+
+         canvas
+      end
+
+      def fuddle_objects?
+           @fobjs = []
+
+           instructions.each do |inst|
+             inst.apply( self )
+           end
+
+           self.Annots.map{|ann| ann.solve }.each do |ann|
+             fel = FuzzyElement.new( :type => :annotation )
+
+             fel.name = ann.T.strip
+             fel.bottom_left = Point.new( ann.Rect[0], ann.Rect[1] )
+             fel.top_right = Point.new( ann.Rect[2], ann.Rect[3] )
+
+             @fobjs << fel
+           end
+
+           @fobjs
+        end
+
+
+        def graphics_manager
+           @graphics_manager
+        end
+
+        def fobjs
+           @fobjs
         end
 
         #
@@ -679,6 +737,23 @@ module Origami
         end
 
         private
+
+        def load!
+           return unless @instructions.nil?
+
+           all_data = ""
+           self.content_streams.each { |cs| all_data += cs.data }
+
+           code = StringScanner.new all_data
+           @instructions = []
+
+           until code.eos?
+               insn = PDF::Instruction.parse(code)
+               @instructions << insn if insn
+           end
+
+           self
+        end
 
         def create_richmedia(type, content, params) #:nodoc:
             content.set_indirect(true)

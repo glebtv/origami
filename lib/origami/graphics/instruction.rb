@@ -20,39 +20,68 @@
 
 module Origami
 
-    class InvalidPDFInstructionError < Error; end
+   class InvalidPDFInstructionError < Error; end
 
-    class PDF::Instruction
-        using TypeConversion
+   class PDF::Instruction
+      using TypeConversion
 
-        attr_reader :operator
-        attr_accessor :operands
+      attr_reader :operator
+      attr_accessor :operands
 
-        @insns = Hash.new(operands: [], render: lambda{})
+      @insns = Hash.new(operands: [], render: lambda{})
 
-        def initialize(operator, *operands)
-            @operator = operator
-            @operands = operands.map!{|arg| arg.is_a?(Origami::Object) ? arg.value : arg}
+      def initialize(operator, *operands)
+         @operator = operator
+         @operands = operands.map!{|arg| arg.is_a?(Origami::Object) ? arg.value : arg}
 
-            if self.class.has_op?(operator)
-                opdef = self.class.get_operands(operator)
+         if self.class.has_op?(operator)
+            opdef = self.class.get_operands(operator)
 
-                if not opdef.include?('*') and opdef.size != operands.size
-                    raise InvalidPDFInstructionError,
-                            "Numbers of operands mismatch for #{operator}: #{operands.inspect}"
-                end
+            if not opdef.include?('*') and opdef.size != operands.size
+               raise InvalidPDFInstructionError,
+                      "Numbers of operands mismatch for #{operator}: #{operands.inspect}"
             end
-        end
+         end
+      end
 
-        def render(canvas)
-            self.class.get_render_proc(@operator)[canvas, *@operands]
+      def render(canvas)
+         self.class.get_render_proc(@operator)[canvas, *@operands]
 
-            self
-        end
+         self
+      end
 
-        def to_s
-            "#{operands.map{|op| op.to_o.to_s}.join(' ')}#{' ' unless operands.empty?}#{operator}\n"
-        end
+      def to_s
+         "#{operands.map{|op| op.to_o.to_s}.join(' ')}#{' ' unless operands.empty?}#{operator}\n"
+      end
+
+      def apply( page, canvas )
+
+         case operator
+         when 'cm'
+            page.graphics_manager.command_cm( *operands )
+         when 'g'
+            page.graphics_manager.command_g
+         when 'G'
+            page.graphics_manager.command_G
+         when 'Do'
+
+
+
+            xobj = page.Resources.xobjects[ operands.first ]
+            if !xobj.nil?
+               xcan = canvas.command_do( operands.first, xobj.no, xobj.generation )
+               xobj.instructions.each{ |inst| inst.apply( page, xcan ) }
+            end
+         when 're'
+            bl = page.graphics_manager.resolve( Point.new( operands[0], operands[1] ) )
+            tr = page.graphics_manager.resolve( Point.new( operands[0] + operands[2], operands[1] + operands[3] ) )
+
+            canvas.command_re( tr, bl )
+         when 'Tj'
+            canvas.command_Tj( operands.first.strip )
+         end
+
+      end
 
         class << self
             def insn(operator, *operands, &render_proc)

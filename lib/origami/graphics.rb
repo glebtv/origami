@@ -26,6 +26,85 @@ module Origami
         #
         class Error < Origami::Error; end
     end
+
+    class Point
+      def initialize( x, y )
+         @x = x
+         @y = y
+      end
+
+      attr_accessor :x, :y
+
+      def clone
+         Point.new( x, y )
+      end
+
+      def to_s
+         "[ x: #{x}, y: #{y} ]"
+      end
+  end
+
+  class TransformMatrix
+      def initialize a, b, c, d, e, f
+         @mat = [ a,b,c,d,e,f ]
+      end
+
+      def transform point
+         p = Point.new( point.x * @mat[0] + point.y * @mat[2] + 1.0 * @mat[4], point.x * @mat[1] + point.y * @mat[3] + 1.0 * @mat[5] )
+         p
+      end
+
+      def clone
+         TransformMatrix.new( *@mat )
+      end
+  end
+
+    class GraphicsManager
+      def initialize
+         @gss = []
+         @gss.push( GraphicsState.new )
+      end
+
+      def command_g
+         cur = @gss.last
+         @gss.push( GraphicsState.new )
+         @gss.last.replicate( cur )
+      end
+
+      def command_G
+         @gss.pop
+      end
+
+      def command_cm *args
+         @gss.last.command_cm *args
+      end
+
+      def resolve point
+         @gss.last.resolve( point )
+      end
+   end
+
+   class GraphicsState
+
+      def initialize
+         @coordinate_transform = []
+      end
+
+      attr_reader :coordinate_transform
+
+      def replicate( state )
+         @coordinate_transform = state.coordinate_transform.map{ |ct| ct.clone }
+      end
+
+      def command_cm *args
+         @coordinate_transform.clear
+         @coordinate_transform.push( TransformMatrix.new( *args ) )
+      end
+
+      def resolve point
+         @coordinate_transform.reduce( point ) { |memo, ct| ct.transform( memo ) }
+      end
+   end
 end
 
 require 'origami/graphics/instruction'

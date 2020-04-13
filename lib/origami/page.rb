@@ -631,14 +631,24 @@ module Origami
              inst.apply( self, canvas )
          end
 
-         self.Annots.map{|ann| ann.solve }.each do |ann|
-            canvas.add_annotation(
-               :text => ann.T.strip,
-               :bottom_left => Point.new( ann.Rect[0], ann.Rect[1] ),
-               :top_right => Point.new( ann.Rect[2], ann.Rect[3] ),
-               :ref => ann.no,
-               :gen => ann.generation
-            )
+         if !self.Annots.nil?
+            self.Annots.map{|ann| ann.solve }.select{ |ann| ann.Subtype.value == :Widget }.each do |ann|
+
+               flags = Hash[
+                  :required => ann.required?,
+                  :read_only => ann.read_only?
+               ]
+
+               canvas.add_annotation(
+                  :text => ann.T.strip,
+                  :field_type => ann.FT.value,
+                  :field_flags => flags,
+                  :bottom_left => Point.new( ann.Rect[0], ann.Rect[1] ),
+                  :top_right => Point.new( ann.Rect[2], ann.Rect[3] ),
+                  :ref => ann.no,
+                  :gen => ann.generation
+               )
+            end
          end
 
          canvas

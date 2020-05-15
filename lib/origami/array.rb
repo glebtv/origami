@@ -161,7 +161,7 @@ module Origami
         #
         def self.of(klass, *klasses, length: nil)
             Class.new(self) do
-                const_set('ARRAY_TYPE', (klasses.empty? and not klass.is_a?(::Array)) ? klass : [ klass ].concat(klasses))
+                const_set('ARRAY_TYPE', (klasses.empty? and not klass.is_a?(::Array)) ? klass : [ klass ].concat(klasses).flatten )
                 const_set('STATIC_LENGTH', length)
 
                 def initialize(data = [], parser = nil)
@@ -188,7 +188,6 @@ module Origami
 
                     self.each_with_index do |object, index|
                         index_type = array_type.is_a?(::Array) ? array_type[index % array_type.size] : array_type
-
                         begin
                             object_value = object.solve
                         rescue InvalidReferenceError

@@ -684,6 +684,12 @@ module Origami
                 image
             end
 
+            ####
+            #### just yeah ###
+            def instructions
+               []
+            end
+
             #
             # Converts an ImageXObject stream into an image file data.
             # Output format depends on the stream encoding:

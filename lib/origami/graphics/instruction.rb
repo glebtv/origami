@@ -50,35 +50,122 @@ module Origami
          self
       end
 
+      def solve_font font
+         if font == :Helv
+            BuiltInFont.new("Helvetica")
+         else
+            BuiltInFont.new( font.to_s )
+         end
+      end
+
       def to_s
          "#{operands.map{|op| op.to_o.to_s}.join(' ')}#{' ' unless operands.empty?}#{operator}\n"
       end
 
       def apply( page, canvas )
-
+         #APPLOG.warn( "#{operator}: #{operands.to_s}" )
          case operator
-         when 'cm'
+         when 'cm' ## coordinate map ##
             page.graphics_manager.command_cm( *operands )
-         when 'g'
-            page.graphics_manager.command_g
-         when 'G'
-            page.graphics_manager.command_G
-         when 'Do'
-
-
-
+         when 'q' ## replicate and push graphic state ##
+            page.graphics_manager.command_q
+         when 'Q' ## pop graphic state
+            page.graphics_manager.command_Q
+         when 'Do' ## xobject
             xobj = page.Resources.xobjects[ operands.first ]
             if !xobj.nil?
                xcan = canvas.command_do( operands.first, xobj.no, xobj.generation )
                xobj.instructions.each{ |inst| inst.apply( page, xcan ) }
             end
-         when 're'
+         when 're' ## rectangle stroke ##
             bl = page.graphics_manager.resolve( Point.new( operands[0], operands[1] ) )
             tr = page.graphics_manager.resolve( Point.new( operands[0] + operands[2], operands[1] + operands[3] ) )
 
             canvas.command_re( tr, bl )
-         when 'Tj'
-            canvas.command_Tj( operands.first.strip )
+         when 'BT' ## begin text ##
+            page.graphics_manager.current.command_BT
+            canvas.command_BT
+         when 'ET' ## end text ##
+            page.graphics_manager.current.command_ET
+            canvas.command_ET
+         when 'g' ## set nonstroking color, greyscale
+            page.graphics_manager.current.command_g( *operands )
+            canvas.command_g( *operands )
+         when 'Td' ## move cursor to position x, y
+            a_p = Point.new( operands[0], operands[1] )
+            page.graphics_manager.current.command_Td( a_p )
+            canvas.command_Td( a_p )
+         when 'TD' ## Move cursor to new line x, y
+            a_p = Point.new( operands[0], operands[1] )
+            page.graphics_manager.current.command_TD( a_p )
+            canvas.command_Td( a_p )
+         when 'Tc' ## Character spacing x
+            page.graphics_manager.current.command_Tc( operands.first )
+         when 'Tw' ## Word spacing x
+            page.graphics_manager.current.command_Tw( operands.first )
+         when 'Tz' ## horizontal scaling spacing x
+            page.graphics_manager.current.command_Tz( operands.first )
+         when 'TL' ## Text leading x (distance between baselines in next line)
+            page.graphics_manager.current.command_TL( operands.first )
+         when 'Tr' ## text render mode
+            page.graphics_manager.current.command_Tr( operands.first )
+         when 'Ts' ## text rise
+            page.graphics_manager.current.command_Ts( operands.first )
+         when 'Tm'
+            page.graphics_manager.current.command_Tm( *operands )
+            canvas.command_Tm( page.graphics_manager.current.text_matrix )
+         when 'T*'
+            page.graphics_manager.current.command_T_star()
+            canvas.command_T_star
+         when 'Tf' ## set font and font size
+            #APPLOG.warn( "Loading font: #{operands.first}")
+            font = page.Resources.Font[ operands.first ]
+            if font.is_a?( Reference )
+               font = font.solve
+            end
+
+            if font.nil?
+               font = solve_font( operands.first )
+            end
+
+            if !font.nil?
+               page.graphics_manager.current.command_Tf( font, operands[1] )
+            else
+               raise "Font not found"
+            end
+         when '"'
+            page.graphics_manager.current.command_T_star()
+            canvas.command_T_star
+            page.graphics_manager.current.command_Tw( operands[0] )
+            page.graphics_manager.current.command_Tc( operands[0] )
+            str = page.graphics_manager.current.text_font.decode_text( operands[2] )
+            #APPLOG.warn( "    '#{str}'")
+            canvas.command_Tj( str, page.graphics_manager.current )
+         when '\''
+            page.graphics_manager.current.command_T_star( )
+            canvas.command_T_star
+
+            str = page.graphics_manager.current.text_font.decode_text( operands[0] )
+            #APPLOG.warn( "    '#{str}'")
+            canvas.command_Tj( str, page.graphics_manager.current )
+         when 'Tj' ## print text
+            str = page.graphics_manager.current.text_font.decode_text( operands[0] )
+            #APPLOG.warn( "    '#{str}'")
+            canvas.command_Tj( str, page.graphics_manager.current )
+         when 'TJ'
+            ops = operands.first
+            last = ops[ -1 ]
+            pre = ops[0...-1]
+            pre.each_slice( 2 ).each do |slice|
+               str = page.graphics_manager.current.text_font.decode_text( slice[0] )
+               #APPLOG.warn( "    '#{str}'")
+               amt = slice[ 1]
+               canvas.command_TJ( str, amt, page.graphics_manager.current )
+            end
+
+            str = page.graphics_manager.current.text_font.decode_text( last )
+            #APPLOG.warn( "    '#{str}'")
+            canvas.command_TJ( str, nil, page.graphics_manager.current )
          end
 
       end

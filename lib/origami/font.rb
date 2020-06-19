@@ -443,6 +443,13 @@ module Origami
          end
 
          class ByteString
+
+            def self.from_int an_int
+               th = an_int.to_s( 16 )
+               a_str = "<" + "0000"[0...(4-th.length) ] + th + ">"
+               self.new( a_str )
+            end
+
             def initialize( str )
                if str[0] == "<" && str[-1] == ">"
                   str = str[1..-2]
@@ -450,6 +457,14 @@ module Origami
                @raw_str = str
                @bytesize = str.length / 2
                @packed = [ @raw_str ].pack('H*')
+            end
+
+            def raw_str
+               @raw_str
+            end
+
+            def to_i
+               @raw_str.to_i( 16 )
             end
 
             def bytesize
@@ -497,10 +512,12 @@ module Origami
                pscode = cmap.data.split(/\r?\n/)
 
                in_bfchar = false
+               in_bfrange = false
                in_codespace = false
 
                while pscode.length > 0
                   cur = pscode.shift
+                  #APPLOG.warn( cur )
                   toks = cur.split(/ +/)
 
                   if toks.last == "endcodespacerange"
@@ -516,6 +533,25 @@ module Origami
                      @ranges[ range.byte_size_range ] << range
                   elsif toks.last == "begincodespacerange"
                      in_codespace = true
+                  end
+
+                  if toks.last == "endbfrange"
+                     in_bfrange = false
+                  elsif in_bfrange
+                     a_start = ByteString.new( toks.first )
+                     a_end = ByteString.new( toks[1] )
+                     a_base = ByteString.new( toks.last )
+
+                     (a_start.to_i..a_end.to_i).each do |i|
+                        inc = i - a_start.to_i
+                        cur = ByteString.from_int( i )
+                        newb = ByteString.from_int( a_base.to_i + inc )
+                        #APPLOG.warn( "#{cur.raw_str} => #{ newb.raw_str}" )
+                        @cidmap[ cur.value ] = newb
+                     end
+
+                  elsif toks.last == "beginbfrange"
+                     in_bfrange = true
                   end
 
                   if toks.last == "endbfchar"

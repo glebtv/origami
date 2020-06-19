@@ -487,13 +487,14 @@ module Origami
                end
 
                pscode = []
-               if !cmap.nil? && !cmap.data.nil?
-                  pscode = cmap.data.split(/\r?\n/)
+               if cmap.nil? || cmap.data.nil?
                   @uniform_range = true
                   @max_range_length = 2
 
                   return
                end
+
+               pscode = cmap.data.split(/\r?\n/)
 
                in_bfchar = false
                in_codespace = false
@@ -605,7 +606,7 @@ module Origami
             def decode_text text
                build_cmap!
 
-               @cmap.decode( text ).encode( "ASCII", "UTF-8" )
+               @cmap.decode( text )
             end
 
             def descendant_font

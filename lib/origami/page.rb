@@ -632,7 +632,7 @@ module Origami
          end
 
          if !self.Annots.nil?
-            self.Annots.map{|ann| ann.solve }.select{ |ann| ann.Subtype.value == :Widget }.each do |ann|
+            self.Annots.map{|ann| ann.solve }.select{ |ann| ann.Subtype.value == :Widget && !ann.FT.nil? && !ann.T.nil? }.each do |ann|
 
                flags = Hash[
                   :required => ann.required?,

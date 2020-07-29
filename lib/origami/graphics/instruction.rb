@@ -72,10 +72,12 @@ module Origami
          when 'Q' ## pop graphic state
             page.graphics_manager.command_Q
          when 'Do' ## xobject
-            xobj = page.Resources.xobjects[ operands.first ]
+            xobj = page.Resources.xobjects[ operands.first ] rescue nil
             if !xobj.nil?
-               xcan = canvas.command_do( operands.first, xobj.no, xobj.generation )
-               xobj.instructions.each{ |inst| inst.apply( page, xcan ) }
+               xcan = canvas.command_do( xobj, operands.first, xobj.no, xobj.generation )
+               if xobj.Subtype.value != :Image
+                  xobj.instructions.each{ |inst| inst.apply( page, xcan ) }
+               end
             end
          when 're' ## rectangle stroke ##
             bl = page.graphics_manager.resolve( Point.new( operands[0], operands[1] ) )
@@ -118,10 +120,12 @@ module Origami
             page.graphics_manager.current.command_T_star()
             canvas.command_T_star
          when 'Tf' ## set font and font size
-            #APPLOG.warn( "Loading font: #{operands.first}")
-            font = page.Resources.Font[ operands.first ]
-            if font.is_a?( Reference )
-               font = font.solve
+            font = nil
+            if !page.Resources.Font.nil?
+               font = page.Resources.Font[ operands.first ]
+               if font.is_a?( Reference )
+                  font = font.solve
+               end
             end
 
             if font.nil?
@@ -139,33 +143,49 @@ module Origami
             page.graphics_manager.current.command_Tw( operands[0] )
             page.graphics_manager.current.command_Tc( operands[0] )
             str = page.graphics_manager.current.text_font.decode_text( operands[2] )
-            #APPLOG.warn( "    '#{str}'")
             canvas.command_Tj( str, page.graphics_manager.current )
          when '\''
             page.graphics_manager.current.command_T_star( )
             canvas.command_T_star
 
             str = page.graphics_manager.current.text_font.decode_text( operands[0] )
-            #APPLOG.warn( "    '#{str}'")
             canvas.command_Tj( str, page.graphics_manager.current )
          when 'Tj' ## print text
             str = page.graphics_manager.current.text_font.decode_text( operands[0] )
-            #APPLOG.warn( "    '#{str}'")
             canvas.command_Tj( str, page.graphics_manager.current )
          when 'TJ'
-            ops = operands.first
-            last = ops[ -1 ]
-            pre = ops[0...-1]
-            pre.each_slice( 2 ).each do |slice|
-               str = page.graphics_manager.current.text_font.decode_text( slice[0] )
-               #APPLOG.warn( "    '#{str}'")
-               amt = slice[ 1]
-               canvas.command_TJ( str, amt, page.graphics_manager.current )
-            end
+            ### The operands for TJ can come in a lot of orders ###
+            ### [ number string number ]
+            ### [ string number string ]
+            ### [ string number ]
+            ### [ number string ]
+            ### We need to do some looking to determine what we need to do
 
-            str = page.graphics_manager.current.text_font.decode_text( last )
-            #APPLOG.warn( "    '#{str}'")
-            canvas.command_TJ( str, nil, page.graphics_manager.current )
+            ops = operands.first
+            fop = ops[0]
+            if !fop.is_a?( ::String )
+               canvas.command_TJ( nil, fop, page.graphics_manager.current )
+               ops = ops[1..-1]
+            end
+            last = nil
+            pre = ops
+            if ops.length % 2 == 1
+               last = ops[ -1 ]
+               pre = ops[0...-1]
+            end
+            if pre.length > 0
+               pre.each_slice( 2 ).each do |slice|
+                  str = page.graphics_manager.current.text_font.decode_text( slice[0] )
+                  if !slice[1].nil?
+                     amt = slice[ 1]
+                     canvas.command_TJ( str, amt, page.graphics_manager.current )
+                  end
+               end
+            end
+            if !last.nil?
+               str = page.graphics_manager.current.text_font.decode_text( last )
+               canvas.command_TJ( str, nil, page.graphics_manager.current )
+            end
          end
 
       end

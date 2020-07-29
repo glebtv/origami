@@ -84,7 +84,7 @@ module Origami
 
     module FontStuff
       def decode_text text
-         text
+         text.unpack('C*').pack('U*')
       end
 
       def bbox
@@ -274,6 +274,10 @@ module Origami
       def get_base_font_name
          @name
       end
+
+      def Encoding
+         "Gobbldeegook"
+      end
     end
 
     #
@@ -295,10 +299,6 @@ module Origami
 
         def get_base_font_name
            fn = self.FontDescriptor.FontName.value.to_s
-        end
-
-        def decode_text text
-           text
         end
 
         def bbox
@@ -343,8 +343,21 @@ module Origami
            style = get_font_style
 
            fn = self.FontDescriptor.FontName.value.to_s
+           #APPLOG.warn( "Loading #{a_name}, #{style}")
+
+           if a_name.downcase == "symbol"
+              a_name = "Symbola"
+           elsif a_name.downcase == "palatino linotype" || a_name.downcase == "palatinolinotype"
+              a_name = "FreeSerif"
+           elsif a_name.downcase == "times"
+             a_name = "Liberation Serif"
+             style = "regular"
+           end
+
+           #APPLOG.warn( "Now Loading #{a_name}, #{style}")
 
            r = `fc-match "#{a_name}"`
+           r.force_encoding( "UTF-8")
            rgx = /(.*): "(.*)" "(.*)"/
 
            match = rgx.match( r )
@@ -353,6 +366,7 @@ module Origami
            fname = match[2]
 
            r = `fc-list "#{fname}"`
+           r.force_encoding( "UTF-8")
 
            fonts = r.split("\n")
 
@@ -363,10 +377,22 @@ module Origami
                 ah = Hash[
                    :file => m2[1],
                    :font => m2[2],
-                   :style => m2[3]
+                   :style => m2[3].split(",")
                 ]
+                new_styles = Hash[]
+                ah[:style].each do |st|
+                   st = st.downcase
+                   if st == "normal" || st == "regular" || st == "plain" || st == "book"
+                      new_styles[ "normal" ] = true
+                      new_styles[ "regular" ] = true
+                      new_styles[ "plain" ] = true
+                      new_styles[ "book" ] = true
+                   else
+                      new_styles[ st ] = true
+                   end
+                end
 
-                ah[:style ] = "Regular" if ah[:style] == "Normal" || ah[:style] == "Regular" || ah[:style] == "Plain" || ah[:style] == "Book"
+                ah[:style ] = new_styles
 
                 ah
              end
@@ -374,11 +400,11 @@ module Origami
 
            raise "Cannot find a font file for #{fn}" if fonts.length == 0
 
-           a_font = fonts.detect{|f| f[:style].downcase == style.downcase }
-
+           a_font = fonts.detect{|f| f[:style][ style.downcase ] }
 
            raise "Cannot find the font file for #{fn}" if a_font.nil?
 
+           #APPLOG.warn( "Font file #{a_font[:file]}")
            @my_font_file = TTFunk::File.open( a_font[:file] )
 
            raise "Could not open font file for #{fn}" if @my_font_file.nil?
@@ -391,7 +417,7 @@ module Origami
         end
 
         def units_per_em
-           font_file.header.units_per_em
+           font_file.header.units_per_em || 1000
 
         end
 
@@ -420,7 +446,6 @@ module Origami
               code = character.unpack1('U*')
               gid = font_file.cmap.unicode.first[ code ]
               glyph = font_file.glyph_outlines.for( gid )
-              #APPLOG.warn( "Lookup glpyh: #{character},#{code},#{gid},#{glyph.nil?}")
               APPLOG.warn( "Unable to find glyph for character #{character} in #{self.FontDescriptor.FontName.value.to_s}") if glyph.nil?
               glyph.nil? ? nil : [ glyph.x_min, glyph.y_min, glyph.x_max, glyph.y_max ]
            end
@@ -538,6 +563,7 @@ module Origami
                   if toks.last == "endbfrange"
                      in_bfrange = false
                   elsif in_bfrange
+                     toks = cur.scan( /<[0-9A-Fa-f]+>/ )
                      a_start = ByteString.new( toks.first )
                      a_end = ByteString.new( toks[1] )
                      a_base = ByteString.new( toks.last )
@@ -546,7 +572,6 @@ module Origami
                         inc = i - a_start.to_i
                         cur = ByteString.from_int( i )
                         newb = ByteString.from_int( a_base.to_i + inc )
-                        #APPLOG.warn( "#{cur.raw_str} => #{ newb.raw_str}" )
                         @cidmap[ cur.value ] = newb
                      end
 
@@ -557,6 +582,7 @@ module Origami
                   if toks.last == "endbfchar"
                      in_bfchar = false
                   elsif in_bfchar
+                     toks = cur.scan( /<[0-9A-Fa-f]+>/ )
                      a_k = ByteString.new( toks.first )
                      a_v = ByteString.new( toks.last )
                      @cidmap[ a_k.value ] = a_v
@@ -766,6 +792,7 @@ module Origami
         #
         # Type 3 Fonts
         #
+        ## This is not well supported yet ##
         class Type3 < Font
             include ResourcesHolder
 
@@ -774,6 +801,36 @@ module Origami
             field   :FontMatrix,            :Type => Array.of(Number, length: 6), :Required => true
             field   :CharProcs,             :Type => Dictionary, :Required => true
             field   :Resources,             :Type => Resources, :Version => "1.2"
+
+            def decode_text text
+               raise "Type 3 font unsupported"
+               text.unpack('C*').pack('U*')
+            end
+
+            def bbox
+               raise "Type 3 font unsupported"
+               glyph_bbox " "
+            end
+
+            def units_per_em
+               raise "Type 3 font unsupported"
+               1000
+            end
+
+            def glyph_kerning char1, char2
+               raise "Type 3 font unsupported"
+               0.0
+            end
+
+            def glyph_advance character
+               raise "Type 3 font unsupported"
+               units_per_em
+            end
+
+            def glyph_bbox character
+               raise "Type 3 font unsupported"
+               [ 0, 0, units_per_em, units_per_em ]
+            end
         end
     end
 

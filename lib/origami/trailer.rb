@@ -86,7 +86,7 @@ module Origami
         include StandardObject
 
         TOKENS = %w{ trailer %%EOF } #:nodoc:
-        XREF_TOKEN = "startxref" #:nodoc:
+        XREF_TOKEN = "(start)?xref" #:nodoc:
 
         @@regexp_open   = Regexp.new(WHITESPACES + TOKENS.first + WHITESPACES)
         @@regexp_xref   = Regexp.new(WHITESPACES + XREF_TOKEN + WHITESPACES + "(?<startxref>\\d+)")

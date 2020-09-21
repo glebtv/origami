@@ -86,7 +86,7 @@ module Origami
         include StandardObject
 
         TOKENS = %w{ trailer %%EOF } #:nodoc:
-        XREF_TOKEN = "(start)?xref" #:nodoc:
+        XREF_TOKEN = "(?<xreftoken>(start)?xref)" #:nodoc:
 
         @@regexp_open   = Regexp.new(WHITESPACES + TOKENS.first + WHITESPACES)
         @@regexp_xref   = Regexp.new(WHITESPACES + XREF_TOKEN + WHITESPACES + "(?<startxref>\\d+)")
@@ -110,7 +110,12 @@ module Origami
         # _dictionary_:: A hash of attributes to set in the Trailer Dictionary.
         #
         def initialize(startxref = 0, dictionary = {})
+            @xreftoken = "startxref"
             @startxref, self.dictionary = startxref, dictionary && Dictionary.new(dictionary)
+        end
+
+        def xreftoken=a_token
+           @xreftoken = a_token
         end
 
         def self.parse(stream, parser = nil) #:nodoc:
@@ -127,12 +132,16 @@ module Origami
             end
 
             startxref = scanner['startxref'].to_i
+            xreftoken = scanner['xreftoken']
 
             if not scanner.scan(@@regexp_close)
                 parser.warn("No %%EOF token found") if parser
             end
 
-            Trailer.new(startxref, dictionary)
+            tr = Trailer.new(startxref, dictionary)
+            tr.xreftoken = xreftoken
+
+            tr
         end
 
         #
@@ -181,7 +190,7 @@ module Origami
                 content << TOKENS.first << eol << @dictionary.to_s(indent: indent, eol: eol) << eol
             end
 
-            content << XREF_TOKEN << eol << @startxref.to_s << eol << TOKENS.last << eol
+            content << @xreftoken << eol << @startxref.to_s << eol << TOKENS.last << eol
 
             content
         end

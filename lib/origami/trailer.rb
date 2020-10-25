@@ -39,7 +39,6 @@ module Origami
             else
                 trl = @revisions.last.xrefstm
             end
-
             raise InvalidPDFError, "No trailer found" if trl.nil?
 
             trl

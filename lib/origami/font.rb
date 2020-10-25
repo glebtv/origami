@@ -94,6 +94,8 @@ module Origami
       def get_font_name
          fn = self.get_base_font_name
 
+         return nil if fn.nil? || fn.length == 0
+
          parts = fn.split("+")
          parts = parts.last
          parts = parts.split("-")
@@ -121,16 +123,49 @@ module Origami
          style
       end
 
+      def local_font_file
+         if !self.FontDescriptor.nil?
+            if self.FontDescriptor.FontFile1
+               self.FontDescriptor.FontFile1
+            elsif self.FontDescriptor.FontFile2
+               self.FontDescriptor.FontFile2
+            elsif self.FontDescriptor.FontFile3
+               self.FontDescriptor.FontFile3
+            end
+         end
+      end
+
+      def parse_font_file!
+         lff = self.local_font_file
+         raise "Could not identify font" if lff.nil?
+
+         @my_font_file = TTFunk::File.open( StringIO.new( lff.data ) )
+      end
+
       def load_font!
          return if @_font_file_loaded
          @_font_file_loaded = true
 
          a_name = get_font_name
+         if a_name.nil?
+            parse_font_file!
+            return true
+         end
          style = get_font_style
 
          fn = self.get_base_font_name
 
+         if a_name.downcase == "symbol"
+            a_name = "Symbola"
+         elsif a_name.downcase == "palatino linotype" || a_name.downcase == "palatinolinotype"
+            a_name = "FreeSerif"
+         elsif a_name.downcase == "times"
+           a_name = "Liberation Serif"
+           style = "regular"
+         end
+
          r = `fc-match -s "#{a_name}"`
+         #APPLOG.warn( a_name )
 
          list = r.force_encoding("UTF-8").split("\n")
          rgx = /(.*): "(.*)" "(.*)"/
@@ -151,6 +186,8 @@ module Origami
 
          r = `fc-list "#{fname}"`
 
+         #APPLOG.warn( fname )
+
          fonts = r.force_encoding("UTF-8").split("\n")
 
          rgx2 = /(.*): (.*):style=(\w+)/
@@ -160,10 +197,22 @@ module Origami
              ah = Hash[
                  :file => m2[1],
                  :font => m2[2],
-                 :style => m2[3]
+                 :style => m2[3].split(",")
              ]
+             new_styles = Hash[]
+             ah[:style].each do |st|
+                 st = st.downcase
+                 if st == "normal" || st == "regular" || st == "plain" || st == "book"
+                    new_styles[ "normal" ] = true
+                    new_styles[ "regular" ] = true
+                    new_styles[ "plain" ] = true
+                    new_styles[ "book" ] = true
+                 else
+                    new_styles[ st ] = true
+                 end
+             end
 
-             ah[:style ] = "Regular" if ah[:style] == "Normal" || ah[:style] == "Regular" || ah[:style] == "Plain" || ah[:style] == "Book"
+             ah[:style ] = new_styles
 
              ah
            end
@@ -171,7 +220,7 @@ module Origami
 
          raise "Cannot find a font file for #{fn}" if fonts.length == 0
 
-         a_font = fonts.detect{|f| f[:style].downcase == style.downcase }
+         a_font = fonts.detect{|f| f[:style][ style.downcase ] }
 
 
          raise "Cannot find the font file for #{fn}" if a_font.nil?
@@ -181,7 +230,7 @@ module Origami
          if a_file_name[-4..-1] != ".ttf"
             raise "Unsupported font file format #{a_file_name} for font #{fn}"
          end
-
+         #APPLOG.warn( a_font[:file] )
          @my_font_file = TTFunk::File.open( a_font[:file] )
 
          raise "Could not open font file for #{fn}" if @my_font_file.nil?
@@ -195,7 +244,6 @@ module Origami
 
       def units_per_em
          font_file.header.units_per_em
-
       end
 
       def get_gid char
@@ -298,117 +346,13 @@ module Origami
         field   :ToUnicode,               :Type => Stream
 
         def get_base_font_name
-           fn = self.FontDescriptor.FontName.value.to_s
-        end
-
-        def bbox
-           font_file.bbox
-        end
-
-        def get_font_name
-           fn = self.FontDescriptor.FontName.value.to_s
-
-           parts = fn.split("+")
-           parts = parts.last
-           parts = parts.split("-")
-           a_name = parts.first
-
-           if a_name[0] == "*"
-             a_name[0] = ""
-           end
-
-           a_name
-        end
-
-        def get_font_style
-           fn = self.FontDescriptor.FontName.value.to_s
-
-           parts = fn.split("+")
-           parts = parts.last
-           parts = parts.split("-")
-           style = (parts[1] || "regular").downcase
-
-           if !( style == "bold" || style == "regular" || style == "italics" )
-             style = "regular"
-           end
-
-           style
-        end
-
-        def load_font!
-           return if @_font_file_loaded
-           @_font_file_loaded = true
-
-           a_name = get_font_name
-           style = get_font_style
-
-           fn = self.FontDescriptor.FontName.value.to_s
-           #APPLOG.warn( "Loading #{a_name}, #{style}")
-
-           if a_name.downcase == "symbol"
-              a_name = "Symbola"
-           elsif a_name.downcase == "palatino linotype" || a_name.downcase == "palatinolinotype"
-              a_name = "FreeSerif"
-           elsif a_name.downcase == "times"
-             a_name = "Liberation Serif"
-             style = "regular"
-           end
-
-           #APPLOG.warn( "Now Loading #{a_name}, #{style}")
-
-           r = `fc-match "#{a_name}"`
-           r.force_encoding( "UTF-8")
-           rgx = /(.*): "(.*)" "(.*)"/
-
-           match = rgx.match( r )
-           raise "Cannot find font file for #{fn}" if match.nil?
-
-           fname = match[2]
-
-           r = `fc-list "#{fname}"`
-           r.force_encoding( "UTF-8")
-
-           fonts = r.split("\n")
-
-           rgx2 = /(.*): (.*):style=(\w+)/
-           fonts = fonts.map do |a_font|
-             m2 = rgx2.match( a_font )
-             if !m2.nil?
-                ah = Hash[
-                   :file => m2[1],
-                   :font => m2[2],
-                   :style => m2[3].split(",")
-                ]
-                new_styles = Hash[]
-                ah[:style].each do |st|
-                   st = st.downcase
-                   if st == "normal" || st == "regular" || st == "plain" || st == "book"
-                      new_styles[ "normal" ] = true
-                      new_styles[ "regular" ] = true
-                      new_styles[ "plain" ] = true
-                      new_styles[ "book" ] = true
-                   else
-                      new_styles[ st ] = true
-                   end
-                end
-
-                ah[:style ] = new_styles
-
-                ah
-             end
-           end.compact
-
-           raise "Cannot find a font file for #{fn}" if fonts.length == 0
-
-           a_font = fonts.detect{|f| f[:style][ style.downcase ] }
-
-           raise "Cannot find the font file for #{fn}" if a_font.nil?
-
-           #APPLOG.warn( "Font file #{a_font[:file]}")
-           @my_font_file = TTFunk::File.open( a_font[:file] )
-
-           raise "Could not open font file for #{fn}" if @my_font_file.nil?
-           true
+           if self.FontDescriptor && self.FontDescriptor.FontName
+             fn = self.FontDescriptor.FontName.value.to_s
+          elsif self.BaseFont
+             self.BaseFont.value.to_s
+          else
+             raise "Unable to determine font name"
+          end
         end
 
         def font_file
@@ -465,6 +409,15 @@ module Origami
             def byte_size_range
                @low.bytesize
             end
+
+            def to_s
+               "Range: #{@low} -> #{@high}"
+            end
+
+            def inspect
+               to_s
+            end
+
          end
 
          class ByteString
@@ -486,6 +439,14 @@ module Origami
 
             def raw_str
                @raw_str
+            end
+
+            def to_s
+               @raw_str
+            end
+
+            def inspect
+               to_s
             end
 
             def to_i
@@ -542,12 +503,14 @@ module Origami
 
                while pscode.length > 0
                   cur = pscode.shift
-                  #APPLOG.warn( cur )
                   toks = cur.split(/ +/)
 
                   if toks.last == "endcodespacerange"
                      in_codespace = false
                   elsif in_codespace
+                     if toks.length != 2
+                        toks = cur.scan( /<[0-9A-Fa-f]+>/ )
+                     end
                      low = ByteString.new( toks.first )
                      high = ByteString.new( toks.last )
                      range = ByteRange.new( low, high )
@@ -677,6 +640,17 @@ module Origami
                @_df = self.DescendantFonts.first.solve
             end
 
+            def local_font_file
+               if !self.descendant_font.FontDescriptor.nil?
+                  if self.descendant_font.FontDescriptor.FontFile1
+                     self.descendant_font.FontDescriptor.FontFile1
+                  elsif self.descendant_font.FontDescriptor.FontFile2
+                     self.descendant_font.FontDescriptor.FontFile2
+                  elsif self.descendant_font.FontDescriptor.FontFile3
+                     self.descendant_font.FontDescriptor.FontFile3
+                  end
+               end
+            end
 
             def bbox
                descendant_font.bbox
@@ -803,32 +777,32 @@ module Origami
             field   :Resources,             :Type => Resources, :Version => "1.2"
 
             def decode_text text
-               raise "Type 3 font unsupported"
+               #raise "Type 3 font unsupported"
                text.unpack('C*').pack('U*')
             end
 
             def bbox
-               raise "Type 3 font unsupported"
+               #raise "Type 3 font unsupported"
                glyph_bbox " "
             end
 
             def units_per_em
-               raise "Type 3 font unsupported"
+               #raise "Type 3 font unsupported"
                1000
             end
 
             def glyph_kerning char1, char2
-               raise "Type 3 font unsupported"
+               #raise "Type 3 font unsupported"
                0.0
             end
 
             def glyph_advance character
-               raise "Type 3 font unsupported"
+               #raise "Type 3 font unsupported"
                units_per_em
             end
 
             def glyph_bbox character
-               raise "Type 3 font unsupported"
+               #raise "Type 3 font unsupported"
                [ 0, 0, units_per_em, units_per_em ]
             end
         end

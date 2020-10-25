@@ -639,12 +639,14 @@ module Origami
                   :read_only => ann.read_only?
                ]
 
+               rct = ann.Rect.map{ |r| r.is_a?( Reference ) ? r.solve : r }
                canvas.add_annotation(
                   :text => ann.T.strip,
                   :field_type => ann.FT.value,
                   :field_flags => flags,
-                  :bottom_left => Point.new( ann.Rect[0], ann.Rect[1] ),
-                  :top_right => Point.new( ann.Rect[2], ann.Rect[3] ),
+                  :choice_options => ann.Opt,
+                  :bottom_left => Point.new( rct[0], rct[1] ),
+                  :top_right => Point.new( rct[2], rct[3] ),
                   :ref => ann.no,
                   :gen => ann.generation
                )
@@ -756,7 +758,7 @@ module Origami
 
            code = StringScanner.new all_data
            @instructions = []
-
+           insn = nil
            until code.eos?
                insn = PDF::Instruction.parse(code)
                @instructions << insn if insn

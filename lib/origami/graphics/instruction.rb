@@ -27,12 +27,15 @@ module Origami
 
       attr_reader :operator
       attr_accessor :operands
+      attr_accessor :extra_data
 
       @insns = Hash.new(operands: [], render: lambda{})
 
       def initialize(operator, *operands)
          @operator = operator
          @operands = operands.map!{|arg| arg.is_a?(Origami::Object) ? arg.value : arg}
+
+         @extra_data = Hash[]
 
          if self.class.has_op?(operator)
             opdef = self.class.get_operands(operator)
@@ -75,7 +78,7 @@ module Origami
             xobj = page.Resources.xobjects[ operands.first ] rescue nil
             if !xobj.nil?
                xcan = canvas.command_do( xobj, operands.first, xobj.no, xobj.generation )
-               if xobj.Subtype.value != :Image
+               if xobj.Subtype.value != :Image && !xcan.nil?
                   xobj.instructions.each{ |inst| inst.apply( page, xcan ) }
                end
             end
@@ -154,37 +157,14 @@ module Origami
             str = page.graphics_manager.current.text_font.decode_text( operands[0] )
             canvas.command_Tj( str, page.graphics_manager.current )
          when 'TJ'
-            ### The operands for TJ can come in a lot of orders ###
-            ### [ number string number ]
-            ### [ string number string ]
-            ### [ string number ]
-            ### [ number string ]
-            ### We need to do some looking to determine what we need to do
-
             ops = operands.first
-            fop = ops[0]
-            if !fop.is_a?( ::String )
-               canvas.command_TJ( nil, fop, page.graphics_manager.current )
-               ops = ops[1..-1]
-            end
-            last = nil
-            pre = ops
-            if ops.length % 2 == 1
-               last = ops[ -1 ]
-               pre = ops[0...-1]
-            end
-            if pre.length > 0
-               pre.each_slice( 2 ).each do |slice|
-                  str = page.graphics_manager.current.text_font.decode_text( slice[0] )
-                  if !slice[1].nil?
-                     amt = slice[ 1]
-                     canvas.command_TJ( str, amt, page.graphics_manager.current )
-                  end
+            ops.each do |op|
+               if !op.is_a?( ::String )
+                  canvas.command_TJ( nil, op, page.graphics_manager.current )
+               else
+                  str = page.graphics_manager.current.text_font.decode_text( op )
+                  canvas.command_TJ( str, nil, page.graphics_manager.current )
                end
-            end
-            if !last.nil?
-               str = page.graphics_manager.current.text_font.decode_text( last )
-               canvas.command_TJ( str, nil, page.graphics_manager.current )
             end
          end
 
@@ -221,7 +201,27 @@ module Origami
                     end
 
                     operator = stream['operator']
-                    PDF::Instruction.new(operator, *operands)
+                    inst = PDF::Instruction.new(operator, *operands)
+
+                    if inst.operator == "BI"
+
+                       rgx = Regexp.new( WHITESPACES + "ID" )
+                       h = Hash[]
+                       image_data = nil
+                       while (!stream.scan( rgx ) )
+                          k = Name.parse( stream )
+                          t = Object.typeof( stream )
+                          v = t.parse( stream )
+
+                          h[k] = v
+                       end
+                       image_data = stream.scan_until(/EI/)
+                       image_data = image_data[0...-2].strip
+                       inst.extra_data[:image_data] = image_data
+                       inst.extra_data[:attributes] = h
+
+                    end
+                    inst
                 else
                     unless operands.empty?
                         raise InvalidPDFInstructionError, "No operator given for operands: #{operands.map(&:to_s).join(' ')}"

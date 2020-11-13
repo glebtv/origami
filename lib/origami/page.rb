@@ -555,6 +555,11 @@ module Origami
             super
         end
 
+        #def to_s *args
+         #  puts "TO S PAGE"
+         #  super *args
+        #end
+
         #
         # Iterates over all the ContentStreams of the Page.
         #
@@ -574,7 +579,7 @@ module Origami
             when Stream then yield(contents)
             when Array then contents.each do |stm|
                   an_o = stm.solve
-                  an_o = ContentStream.new( an_o.data, an_o.dictionary ) if an_o.is_a?( Origami::Stream )
+                  an_o = ContentStream.new( an_o.data, an_o.dictionary ) if an_o.is_a?( Origami::Stream ) && !an_o.is_a?( Origami::ContentStream )
                   yield( an_o )
                end
             end
@@ -626,13 +631,43 @@ module Origami
             @instructions
         end
 
+      def add_widget( params )
+
+         widget = case params[:FT]
+         when :Tx
+            Annotation::Widget::Text.new.set_indirect( true )
+         else
+            Annotation::Widget::Text.new.set_indirect( true )
+         end
+
+         widget.FT = params[:FT]
+         widget.F = params[:F]
+         widget.Rect = params[:Rect]
+         widget.Subtype = :Widget
+         widget.Type = :Annot
+         widget.T = params[:T ]
+         widget.MK = params[ :MK ]
+
+         self.add_annotation( widget )
+
+         widget
+      end
+
+      def quick_draw_rectangle( rect, color )
+         instructions << PDF::Instruction.new( "q" )
+         instructions << PDF::Instruction.new( "rg", color[0], color[1], color[2] )
+         instructions << PDF::Instruction.new( "re", rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1] )
+         instructions << PDF::Instruction.new( "f" )
+         instructions << PDF::Instruction.new( "Q" )
+      end
+
       def to_canvas canvas
          instructions.each do |inst|
              inst.apply( self, canvas )
          end
 
          if !self.Annots.nil?
-            self.Annots.map{|ann| ann.solve }.select{ |ann| ann.Subtype.value == :Widget && !ann.FT.nil? && !ann.T.nil? }.each do |ann|
+            self.Annots.map{|ann| ann.solve }.select{ |ann| ann.Subtype.value == :Widget && !ann.get_field_type.blank? && !ann.get_text.blank? }.each do |ann|
 
                flags = Hash[
                   :required => ann.required?,
@@ -641,10 +676,10 @@ module Origami
 
                rct = ann.Rect.map{ |r| r.is_a?( Reference ) ? r.solve : r }
                canvas.add_annotation(
-                  :text => ann.T.strip,
-                  :field_type => ann.FT.value,
+                  :text => ann.get_text.strip,
+                  :field_type => ann.get_field_type.value,
                   :field_flags => flags,
-                  :choice_options => ann.Opt,
+                  :choice_options => ann.get_options,
                   :bottom_left => Point.new( rct[0], rct[1] ),
                   :top_right => Point.new( rct[2], rct[3] ),
                   :ref => ann.no,
@@ -761,7 +796,7 @@ module Origami
            insn = nil
            until code.eos?
                insn = PDF::Instruction.parse(code)
-               @instructions << insn if insn
+               @instructions.push( *insn )
            end
 
            self

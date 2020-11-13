@@ -29,6 +29,16 @@ module Origami
       attr_accessor :operands
       attr_accessor :extra_data
 
+      ALL_INSTRUCTION_OPERATORS = Hash[
+         "b" => true, "B" => true, "B*" => true, "b*" => true, "BDC" => true, "BI" => true, "BMC" => true, "BT" => true, "BX" => true, "c" => true, "cm" => true, "CS" => true,
+         "cs" => true, "d" => true, "d0" => true, "d1" => true, "Do" => true, "DP" => true, "EI" => true, "EMC" => true, "ET" => true, "EX" => true, "f" => true,
+         "F" => true, "f*" => true, "G" => true, "g" => true, "gs" => true, "h" => true, "i" => true, "ID" => true, "j" => true, "J" => true, "K" => true, "k" => true,
+         "l" => true, "m" => true, "M" => true, "MP" => true, "n" => true, "q" => true, "Q" => true, "re" => true, "RG" => true, "rg" => true, "ri" => true, "s" => true,
+         "S" => true, "SC" => true, "sc" => true, "SCN" => true, "scn" => true, "sh" => true, "T*" => true, "Tc" => true, "Td" => true, "TD" => true, "Tf" => true,
+         "Tj" => true, "TJ" => true, "TL" => true, "Tm" => true, "Tr" => true, "Ts" => true, "Tw" => true, "Tz" => true, "v" => true, "w" => true, "W" => true, "W*" => true,
+         "y" => true, "'" => true, "\"" => true
+      ].freeze
+
       @insns = Hash.new(operands: [], render: lambda{})
 
       def initialize(operator, *operands)
@@ -66,7 +76,9 @@ module Origami
       end
 
       def apply( page, canvas )
-         #APPLOG.warn( "#{operator}: #{operands.to_s}" )
+         #puts( "#{operator}: #{operands.to_s}" )
+         #puts self.to_s
+
          case operator
          when 'cm' ## coordinate map ##
             page.graphics_manager.command_cm( *operands )
@@ -121,7 +133,7 @@ module Origami
             canvas.command_Tm( page.graphics_manager.current.text_matrix )
          when 'T*'
             page.graphics_manager.current.command_T_star()
-            canvas.command_T_star
+            canvas.command_T_star( page.graphics_manager.current.text_leading )
          when 'Tf' ## set font and font size
             font = nil
             if !page.Resources.Font.nil?
@@ -142,14 +154,14 @@ module Origami
             end
          when '"'
             page.graphics_manager.current.command_T_star()
-            canvas.command_T_star
+            canvas.command_T_star( page.graphics_manager.current.text_leading )
             page.graphics_manager.current.command_Tw( operands[0] )
             page.graphics_manager.current.command_Tc( operands[0] )
             str = page.graphics_manager.current.text_font.decode_text( operands[2] )
             canvas.command_Tj( str, page.graphics_manager.current )
          when '\''
             page.graphics_manager.current.command_T_star( )
-            canvas.command_T_star
+            canvas.command_T_star( page.graphics_manager.current.text_leading )
 
             str = page.graphics_manager.current.text_font.decode_text( operands[0] )
             canvas.command_Tj( str, page.graphics_manager.current )
@@ -189,6 +201,33 @@ module Origami
                 @insns[operator][:operands]
             end
 
+            def sanitize_operator( operator )
+               ops = []
+               remaining = operator
+               while remaining.length > 0
+                  len = remaining.length
+                  found = false
+                  cutoff = 0
+                  while !found && cutoff < len
+                     check = remaining[0...(len-cutoff)]
+                     if ALL_INSTRUCTION_OPERATORS[ check ]
+                        ops << check
+                        found = true
+                     else
+                        cutoff += 1
+                     end
+                  end
+
+                  if found
+                     remaining = remaining[(len-cutoff)..len-1]
+                  else
+                     raise InvalidPDFInstructionError, "Operator: #{operator}"
+                  end
+               end
+
+               ops
+            end
+
             def parse(stream)
                 operands = []
                 while type = Object.typeof(stream, true)
@@ -201,9 +240,14 @@ module Origami
                     end
 
                     operator = stream['operator']
-                    inst = PDF::Instruction.new(operator, *operands)
+                    operators = self.sanitize_operator( operator )
+                    insts = [ PDF::Instruction.new(operators.first, *operands) ]
+                    operators[1..-1].each {|op| insts << PDF::Instruction.new( op ) }
+                    lastinst = insts.last
 
-                    if inst.operator == "BI"
+
+                    if lastinst.operator == "BI"
+                       puts "HELLO THERE"
 
                        rgx = Regexp.new( WHITESPACES + "ID" )
                        h = Hash[]
@@ -217,11 +261,11 @@ module Origami
                        end
                        image_data = stream.scan_until(/EI/)
                        image_data = image_data[0...-2].strip
-                       inst.extra_data[:image_data] = image_data
-                       inst.extra_data[:attributes] = h
+                       lastinst.extra_data[:image_data] = image_data
+                       lastinst.extra_data[:attributes] = h
 
                     end
-                    inst
+                    insts
                 else
                     unless operands.empty?
                         raise InvalidPDFInstructionError, "No operator given for operands: #{operands.map(&:to_s).join(' ')}"

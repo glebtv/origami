@@ -247,7 +247,7 @@ module Origami
 
       def text_displace_x amount, word_flag = false
          new_amount = ( amount + @text_character_spacing + ( word_flag ? @text_word_spacing : 0 ) ) * @text_horizontal_scaling / 100.0
-         #APPLOG.warn( "Displace: #{amount} -> #{new_amount}, #{word_flag}, #{@text_character_spacing},#{@text_word_spacing}, #{@text_horizontal_scaling / 100.0}")
+         #puts( "Displace: #{amount} -> #{new_amount}, #{word_flag}, #{@text_character_spacing},#{@text_word_spacing}, #{@text_horizontal_scaling / 100.0}")
          @text_matrix.cell!( 2, 0, @text_matrix.cell( 2, 0 ) + new_amount )
       end
 

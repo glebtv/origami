@@ -96,6 +96,8 @@ module Origami
 
          return nil if fn.nil? || fn.length == 0
 
+         return nil if /CIDFont\+F\d/ =~ fn
+
          parts = fn.split("+")
          parts = parts.last
          parts = parts.split("-")
@@ -103,6 +105,7 @@ module Origami
 
          if a_name[0] == "*"
            a_name[0] = ""
+        else
          end
 
          a_name
@@ -346,8 +349,8 @@ module Origami
         field   :ToUnicode,               :Type => Stream
 
         def get_base_font_name
-           if self.FontDescriptor && self.FontDescriptor.FontName
-             fn = self.FontDescriptor.FontName.value.to_s
+          fn = if self.FontDescriptor && self.FontDescriptor.FontName
+             self.FontDescriptor.FontName.value.to_s
           elsif self.BaseFont
              self.BaseFont.value.to_s
           else
@@ -495,62 +498,57 @@ module Origami
                   return
                end
 
-               pscode = cmap.data.split(/\r?\n/)
+               pscode = cmap.data
 
-               in_bfchar = false
-               in_bfrange = false
-               in_codespace = false
+               pscode.scan( /(\d+)\s+begincodespacerange(.*?)endcodespacerange/m ).each do |spacerange|
+                  count = spacerange[0].to_i
+                  toks = spacerange[1].scan( /<[0-9A-Fa-f]+>/ )
 
-               while pscode.length > 0
-                  cur = pscode.shift
-                  toks = cur.split(/ +/)
-
-                  if toks.last == "endcodespacerange"
-                     in_codespace = false
-                  elsif in_codespace
-                     if toks.length != 2
-                        toks = cur.scan( /<[0-9A-Fa-f]+>/ )
-                     end
-                     low = ByteString.new( toks.first )
-                     high = ByteString.new( toks.last )
+                  (0...count).each do |index|
+                     tokstart = index * 2
+                     low = ByteString.new( toks[ tokstart ] )
+                     high = ByteString.new( toks[ tokstart + 1 ] )
                      range = ByteRange.new( low, high )
                      if @ranges[ range.byte_size_range ].nil?
                         @ranges[ range.byte_size_range ] = []
                         @max_range_length = range.byte_size_range if @max_range_length < range.byte_size_range
                      end
                      @ranges[ range.byte_size_range ] << range
-                  elsif toks.last == "begincodespacerange"
-                     in_codespace = true
                   end
+               end
 
-                  if toks.last == "endbfrange"
-                     in_bfrange = false
-                  elsif in_bfrange
-                     toks = cur.scan( /<[0-9A-Fa-f]+>/ )
-                     a_start = ByteString.new( toks.first )
-                     a_end = ByteString.new( toks[1] )
-                     a_base = ByteString.new( toks.last )
+               pscode.scan( /(\d+)\s+beginbfrange(.*?)endbfrange/m ).each do |spacerange|
+                  count = spacerange[0].to_i
+                  lines = spacerange[1].scan( /\s*(<[0-9A-Fa-f]+>)\s*(<[0-9A-Fa-f]+>)\s*(\s*<[0-9A-Fa-f]+>|\[(?:\s*<[0-9A-Fa-f]+>)+\])/ )
+
+                  lines.each do |aline|
+                     a_start = ByteString.new( aline[0] )
+                     a_end = ByteString.new( aline[1] )
+                     a_base = aline[2].scan( /<[0-9A-Fa-f]+>/ )
 
                      (a_start.to_i..a_end.to_i).each do |i|
-                        inc = i - a_start.to_i
                         cur = ByteString.from_int( i )
-                        newb = ByteString.from_int( a_base.to_i + inc )
+                        inc = i - a_start.to_i
+                        newb = nil
+                        if a_base.length > 1
+                           newb = ByteString.new( a_base[inc] )
+                        else
+                           newb = ByteString.from_int( a_base.first.to_i + inc )
+                        end
                         @cidmap[ cur.value ] = newb
                      end
-
-                  elsif toks.last == "beginbfrange"
-                     in_bfrange = true
                   end
+               end
 
-                  if toks.last == "endbfchar"
-                     in_bfchar = false
-                  elsif in_bfchar
-                     toks = cur.scan( /<[0-9A-Fa-f]+>/ )
-                     a_k = ByteString.new( toks.first )
-                     a_v = ByteString.new( toks.last )
+               pscode.scan( /(\d+)\s+beginbfchar(.*?)endbfchar/m ).each do |spacerange|
+                  count = spacerange[0].to_i
+                  toks = spacerange[1].scan( /<[0-9A-Fa-f]+>/ )
+
+                  (0...count).each do |index|
+                     tokstart = index * 2
+                     a_k = ByteString.new( toks[ tokstart ] )
+                     a_v = ByteString.new( toks[ tokstart + 1] )
                      @cidmap[ a_k.value ] = a_v
-                  elsif toks.last == "beginbfchar"
-                     in_bfchar = true
                   end
                end
 

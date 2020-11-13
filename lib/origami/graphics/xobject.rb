@@ -423,7 +423,6 @@ module Origami
 
         def load!
             return unless @instructions.nil?
-
             decode!
 
             code = StringScanner.new self.data
@@ -431,7 +430,7 @@ module Origami
 
             until code.eos?
                 insn = PDF::Instruction.parse(code)
-                @instructions << insn if insn
+                @instructions.push( *insn )
             end
 
             self

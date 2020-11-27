@@ -247,7 +247,6 @@ module Origami
 
 
                     if lastinst.operator == "BI"
-                       puts "HELLO THERE"
 
                        rgx = Regexp.new( WHITESPACES + "ID" )
                        h = Hash[]

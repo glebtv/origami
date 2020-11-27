@@ -91,36 +91,54 @@ module Origami
          font_file.bbox
       end
 
-      def get_font_name
+      def parse_font_name
          fn = self.get_base_font_name
 
-         return nil if fn.nil? || fn.length == 0
-
-         return nil if /CIDFont\+F\d/ =~ fn
-
-         parts = fn.split("+")
-         parts = parts.last
-         parts = parts.split("-")
-         a_name = parts.first
-
-         if a_name[0] == "*"
-           a_name[0] = ""
-        else
+         if fn.nil? || fn.length == 0 || /CIDFont\+F\d/ =~ fn || /^(T|F)\d{0,2}(_\d)?$/ =~ fn
+            #File.open("fontlist.txt","a") {|f| f.write( "Janky font #{fn}\n" )}
+            return Hash[ "name" => nil, "style" => nil ]
          end
 
-         a_name
+         m = /^\*?(?:\w{6}\+)?([a-zA-Z0-9 #]+(?:-Narrow)?)(?:[-,]([a-zA-Z ]+)|-([a-zA-Z ]+),[a-zA-Z ]+)?(-\d{3,5})?(-Identity-H)?$/.match( fn )
+         if m.nil?
+            #File.open("fontlist.txt","a") {|f| f.write( "Bad match #{fn}\n" )}
+            return Hash[ "name" => nil, "style" => nil ]
+         end
+
+         a_f_name = m[1]
+         a_f_style = m[2] || ""
+
+         chunks =  a_f_name.split(" ").reverse
+         while chunks.length > 1 && /^(bold|italic)$/i =~ chunks.first
+            a_f_style += " " + chunks.shift
+         end
+
+         a_f_name = chunks.reverse.join(" ")
+
+         Hash[ "name" => a_f_name, "style" => a_f_style ]
       end
 
+      def get_font_name
+         self.parse_font_name["name"]
+      end
+
+      BOLD_REGEX = /bold|demi|black|bd|heavy/i
+      ITALIC_REGEX = /it|oblique/i
+      REGULAR_REGEX = /roman|regular|book|medium|light/i
+
       def get_font_style
-         fn = self.get_base_font_name
+         style = self.parse_font_name["style"]
 
-         parts = fn.split("+")
-         parts = parts.last
-         parts = parts.split("-")
-         style = (parts[1] || "regular").downcase
-
-         if !( style == "bold" || style == "regular" || style == "italics" )
-           style = "regular"
+         if BOLD_REGEX =~ style && ITALIC_REGEX =~ style
+            style = "bold italics"
+         elsif BOLD_REGEX =~ style
+            style = "bold"
+         elsif ITALIC_REGEX =~ style
+            style = "italics"
+         elsif /regular/i =~ style
+            style = "regular"
+         else
+            style = "regular"
          end
 
          style
@@ -158,34 +176,48 @@ module Origami
 
          fn = self.get_base_font_name
 
-         if a_name.downcase == "symbol"
+         fname = nil
+
+         if a_name.downcase == "symbol" || a_name.downcase == "symbolmt"
             a_name = "Symbola"
          elsif a_name.downcase == "palatino linotype" || a_name.downcase == "palatinolinotype"
             a_name = "FreeSerif"
          elsif a_name.downcase == "times"
            a_name = "Liberation Serif"
-           style = "regular"
+           fname = "LiberationSerif"
+         elsif a_name.downcase == "arialmt" || a_name.downcase == "arial"
+           a_name = "Liberation Sans"
+           fname = "LiberationSans"
+         elsif a_name.downcase == "timesnewromanpsmt" || /times\s*new\s*roman/ =~ a_name.downcase
+           a_name = "Liberation Serif"
+           fname = "LiberationSerif"
          end
 
-         r = `fc-match -s "#{a_name}"`
-         #APPLOG.warn( a_name )
+         if fname.nil?
+            r = `fc-match -s "#{a_name}"`
+            #APPLOG.warn( a_name )
 
-         list = r.force_encoding("UTF-8").split("\n")
-         rgx = /(.*): "(.*)" "(.*)"/
-         a_thing = list.map do |a_r|
-            match = rgx.match( a_r )
-            if !match.nil?
-               [match[1],match[2]]
+            list = r.force_encoding("UTF-8").split("\n")
+            rgx = /(.*): "(.*)" "(.*)"/
+            a_thing = list.map do |a_r|
+               match = rgx.match( a_r )
+               if !match.nil?
+                  [match[1],match[2]]
+               end
+            end.select do |a_r|
+               if !a_r.nil?
+                  a_r[0][-4..-1] == ".ttf"
+               end
+            end.first
+
+            raise "Cannot find font file for #{fn}" if a_thing.nil?
+
+            fname = a_thing[1]
+
+            if fname == "DejaVu Sans"
+               fname = "Liberation Sans"
             end
-         end.select do |a_r|
-            if !a_r.nil?
-               a_r[0][-4..-1] == ".ttf"
-            end
-         end.first
-
-         raise "Cannot find font file for #{fn}" if a_thing.nil?
-
-         fname = a_thing[1]
+         end
 
          r = `fc-list "#{fname}"`
 
@@ -193,7 +225,7 @@ module Origami
 
          fonts = r.force_encoding("UTF-8").split("\n")
 
-         rgx2 = /(.*): (.*):style=(\w+)/
+         rgx2 = /(.*): (.*):style=((?:\w+\s+)*\w+)/
          fonts = fonts.map do |a_font|
            m2 = rgx2.match( a_font )
            if !m2.nil?
@@ -210,6 +242,12 @@ module Origami
                     new_styles[ "regular" ] = true
                     new_styles[ "plain" ] = true
                     new_styles[ "book" ] = true
+                 elsif st == "italic" || st == "italics"
+                    new_styles[ "italic" ] = true
+                    new_styles[ "italics" ] = true
+                 elsif st == "bold italic"
+                    new_styles[ "bold italic" ] = true
+                    new_styles[ "bold italics" ] = true
                  else
                     new_styles[ st ] = true
                  end
@@ -219,16 +257,19 @@ module Origami
 
              ah
            end
-         end.compact
+        end.compact
 
          raise "Cannot find a font file for #{fn}" if fonts.length == 0
 
          a_font = fonts.detect{|f| f[:style][ style.downcase ] }
 
 
-         raise "Cannot find the font file for #{fn}" if a_font.nil?
+         raise "Cannot find the font file for #{fn} - #{a_name}=>#{fname},#{style}" if a_font.nil?
 
          a_file_name = a_font[:file]
+
+         #puts "#{fn} => #{a_name},#{style} => #{fname} => #{a_font[:file]}"
+         #File.open("fontlist.txt","a") {|f| f.write( "#{fn} => #{a_name},#{style} => #{fname} => #{a_font[:file]}\n" )}
 
          if a_file_name[-4..-1] != ".ttf"
             raise "Unsupported font file format #{a_file_name} for font #{fn}"
@@ -393,7 +434,7 @@ module Origami
               code = character.unpack1('U*')
               gid = font_file.cmap.unicode.first[ code ]
               glyph = font_file.glyph_outlines.for( gid )
-              APPLOG.warn( "Unable to find glyph for character #{character} in #{self.FontDescriptor.FontName.value.to_s}") if glyph.nil?
+              APPLOG.warn( "Unable to find glyph for character #{character} in #{self.get_base_font_name}") if glyph.nil?
               glyph.nil? ? nil : [ glyph.x_min, glyph.y_min, glyph.x_max, glyph.y_max ]
            end
         end

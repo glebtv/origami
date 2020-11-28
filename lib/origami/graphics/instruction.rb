@@ -66,6 +66,8 @@ module Origami
       def solve_font font
          if font == :Helv
             BuiltInFont.new("Helvetica")
+         elsif /^T\d+_\d+$/ =~ font.to_s
+            BuiltInFont.new( "Arial" )
          else
             BuiltInFont.new( font.to_s )
          end
@@ -76,7 +78,7 @@ module Origami
       end
 
       def apply( page, canvas )
-         #puts( "#{operator}: #{operands.to_s}" )
+         #puts( "#{operator}: #{operands.to_s}" ) 
          #puts self.to_s
 
          case operator
@@ -140,6 +142,19 @@ module Origami
                font = page.Resources.Font[ operands.first ]
                if font.is_a?( Reference )
                   font = font.solve
+               end
+
+               if font.nil?
+                  if page.Parent && page.Parent.Kids
+                     a_page = page.Parent.Kids.detect {|p| a_p = p.is_a?( Origami::Reference ) ? p.solve : p; a_p.Resources && a_p.Resources.Font && a_p.Resources.Font[ operands.first ]}
+                     if !a_page.nil?
+                        a_page = a_page.solve if a_page.is_a?( Reference )
+                        font = a_page.Resources.Font[ operands.first ]
+                        if font.is_a?( Reference )
+                           font = font.solve
+                        end
+                     end
+                  end
                end
             end
 

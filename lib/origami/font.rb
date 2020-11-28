@@ -191,6 +191,9 @@ module Origami
          elsif a_name.downcase == "timesnewromanpsmt" || /times\s*new\s*roman/ =~ a_name.downcase
            a_name = "Liberation Serif"
            fname = "LiberationSerif"
+        elsif a_name.downcase == "georgia"
+           a_name = "Charter"
+           fname = "Charter"
          end
 
          if fname.nil?
@@ -216,6 +219,8 @@ module Origami
 
             if fname == "DejaVu Sans"
                fname = "Liberation Sans"
+            elsif fname == "DejaVu Serif"
+               fname = "Liberation Serif"
             end
          end
 

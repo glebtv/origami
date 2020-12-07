@@ -78,7 +78,7 @@ module Origami
       end
 
       def apply( page, canvas )
-         #puts( "#{operator}: #{operands.to_s}" ) 
+         #puts( "#{operator}: #{operands.to_s}" )
          #puts self.to_s
 
          case operator
@@ -89,11 +89,17 @@ module Origami
          when 'Q' ## pop graphic state
             page.graphics_manager.command_Q
          when 'Do' ## xobject
-            xobj = page.Resources.xobjects[ operands.first ] rescue nil
+            xobj = page.Resources.XObject[ operands.first ] rescue nil
+            xobj = xobj.solve if xobj.is_a?( ::Origami::Reference )
             if !xobj.nil?
-               xcan = canvas.command_do( xobj, operands.first, xobj.no, xobj.generation )
-               if xobj.Subtype.value != :Image && !xcan.nil?
-                  xobj.instructions.each{ |inst| inst.apply( page, xcan ) }
+               if xobj.Subtype.value != :Image
+                  xcan = canvas.command_do( xobj, operands.first, xobj.no, xobj.generation )
+                  if !xcan.nil?
+                     page.graphics_manager.command_q
+                     page.graphics_manager.current.set_context( xobj )
+                     xobj.instructions.each{ |inst| inst.apply( page, xcan ) }
+                     page.graphics_manager.command_Q
+                  end
                end
             end
          when 're' ## rectangle stroke ##
@@ -103,7 +109,7 @@ module Origami
             canvas.command_re( tr, bl )
          when 'BT' ## begin text ##
             page.graphics_manager.current.command_BT
-            canvas.command_BT
+            canvas.command_BT( page.graphics_manager.current )
          when 'ET' ## end text ##
             page.graphics_manager.current.command_ET
             canvas.command_ET
@@ -113,11 +119,11 @@ module Origami
          when 'Td' ## move cursor to position x, y
             a_p = Point.new( operands[0], operands[1] )
             page.graphics_manager.current.command_Td( a_p )
-            canvas.command_Td( a_p )
+            canvas.command_Td( a_p, page.graphics_manager.current )
          when 'TD' ## Move cursor to new line x, y
             a_p = Point.new( operands[0], operands[1] )
             page.graphics_manager.current.command_TD( a_p )
-            canvas.command_Td( a_p )
+            canvas.command_Td( a_p, page.graphics_manager.current )
          when 'Tc' ## Character spacing x
             page.graphics_manager.current.command_Tc( operands.first )
          when 'Tw' ## Word spacing x
@@ -132,27 +138,39 @@ module Origami
             page.graphics_manager.current.command_Ts( operands.first )
          when 'Tm'
             page.graphics_manager.current.command_Tm( *operands )
-            canvas.command_Tm( page.graphics_manager.current.text_matrix )
+            canvas.command_Tm( page.graphics_manager.current.text_matrix, page.graphics_manager.current )
          when 'T*'
             page.graphics_manager.current.command_T_star()
-            canvas.command_T_star( page.graphics_manager.current.text_leading )
+            canvas.command_T_star( page.graphics_manager.current.text_leading, page.graphics_manager.current )
          when 'Tf' ## set font and font size
             font = nil
-            if !page.Resources.Font.nil?
+
+            if !page.graphics_manager.current.context.nil?
+               a_ctx = page.graphics_manager.current.context
+               if a_ctx.Resources && a_ctx.Resources.Font
+                  font = a_ctx.Resources.Font[ operands.first ]
+                  if font.is_a?( Reference )
+                     font = font.solve
+                  end
+               end
+            end
+
+            if font.nil? && !page.Resources.Font.nil?
+
                font = page.Resources.Font[ operands.first ]
                if font.is_a?( Reference )
                   font = font.solve
                end
+            end
 
-               if font.nil?
-                  if page.Parent && page.Parent.Kids
-                     a_page = page.Parent.Kids.detect {|p| a_p = p.is_a?( Origami::Reference ) ? p.solve : p; a_p.Resources && a_p.Resources.Font && a_p.Resources.Font[ operands.first ]}
-                     if !a_page.nil?
-                        a_page = a_page.solve if a_page.is_a?( Reference )
-                        font = a_page.Resources.Font[ operands.first ]
-                        if font.is_a?( Reference )
-                           font = font.solve
-                        end
+            if font.nil?
+               if page.Parent && page.Parent.Kids
+                  a_page = page.Parent.Kids.detect {|p| a_p = p.is_a?( Origami::Reference ) ? p.solve : p; a_p.Resources && a_p.Resources.Font && a_p.Resources.Font[ operands.first ]}
+                  if !a_page.nil?
+                     a_page = a_page.solve if a_page.is_a?( Reference )
+                     font = a_page.Resources.Font[ operands.first ]
+                     if font.is_a?( Reference )
+                        font = font.solve
                      end
                   end
                end
@@ -164,19 +182,20 @@ module Origami
 
             if !font.nil?
                page.graphics_manager.current.command_Tf( font, operands[1] )
+               canvas.command_Tf( font, page.graphics_manager.current )
             else
                raise "Font not found"
             end
          when '"'
             page.graphics_manager.current.command_T_star()
-            canvas.command_T_star( page.graphics_manager.current.text_leading )
+            canvas.command_T_star( page.graphics_manager.current.text_leading, page.graphics_manager.current )
             page.graphics_manager.current.command_Tw( operands[0] )
             page.graphics_manager.current.command_Tc( operands[0] )
             str = page.graphics_manager.current.text_font.decode_text( operands[2] )
             canvas.command_Tj( str, page.graphics_manager.current )
          when '\''
             page.graphics_manager.current.command_T_star( )
-            canvas.command_T_star( page.graphics_manager.current.text_leading )
+            canvas.command_T_star( page.graphics_manager.current.text_leading, page.graphics_manager.current)
 
             str = page.graphics_manager.current.text_font.decode_text( operands[0] )
             canvas.command_Tj( str, page.graphics_manager.current )

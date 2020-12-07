@@ -674,11 +674,17 @@ module Origami
                   :read_only => ann.read_only?
                ]
 
+               rotation = 0
+               if ann.MK && ann.MK[:R]
+                  rotation = ann.MK[:R].to_i
+               end
+
                rct = ann.Rect.map{ |r| r.is_a?( Reference ) ? r.solve : r }
                canvas.add_annotation(
                   :text => ann.get_text.strip,
                   :field_type => ann.get_field_type.value,
                   :field_flags => flags,
+                  :rotation => rotation,
                   :choice_options => ann.get_options,
                   :bottom_left => Point.new( rct[0], rct[1] ),
                   :top_right => Point.new( rct[2], rct[3] ),

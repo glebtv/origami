@@ -40,6 +40,10 @@ module Origami
       end
 
       def to_s
+         inspect
+      end
+
+      def inspect
          "[ x: #{x}, y: #{y} ]"
       end
 
@@ -71,9 +75,18 @@ module Origami
          @mat = [ a,b,c,d,e,f ]
       end
 
-      def transform point
-         p = Point.new( point.x * @mat[0] + point.y * @mat[2] + 1.0 * @mat[4], point.x * @mat[1] + point.y * @mat[3] + 1.0 * @mat[5] )
+      def transform point, opts = Hash[]
+         tran_amt = opts[:no_translate] ? 0.0 : 1.0
+         p = Point.new( point.x * @mat[0] + point.y * @mat[2] + tran_amt * @mat[4], point.x * @mat[1] + point.y * @mat[3] + tran_amt * @mat[5] )
          p
+      end
+
+      def inspect
+         @mat.to_s
+      end
+
+      def to_s
+         inspect
       end
 
       def clone
@@ -147,7 +160,7 @@ module Origami
    class GraphicsState
 
       def initialize
-         @coordinate_transform = [ TransformMatrix.new( 1, 0, 0, 1, 0, 0 ) ]
+         @coordinate_transform = TransformMatrix.new( 1, 0, 0, 1, 0, 0 )
 
          @text_character_spacing = 0.0
          @text_word_spacing = 0.0
@@ -160,18 +173,27 @@ module Origami
          @text_knockout = 0.0
          @text_matrix = nil
          @text_line_matrix = nil
+         @context = nil
       end
 
       attr_reader :coordinate_transform
 
-      attr_reader :text_character_spacing, :text_word_spacing, :text_horizontal_scaling, :text_leading, :text_font, :text_font_size, :text_rendering_mode, :text_rise, :text_knockout, :text_matrix, :text_line_matrix
+      attr_reader :text_character_spacing, :text_word_spacing, :text_horizontal_scaling, :text_leading, :text_font, :text_font_size, :text_rendering_mode, :text_rise, :text_knockout, :text_matrix, :text_line_matrix, :context
 
       def replicate( state )
-         @coordinate_transform = state.coordinate_transform.map{ |ct| ct.clone }
+         @coordinate_transform = state.coordinate_transform.clone
+         @context = state.context
 
          self.replicate_text_state( state )
 
          self
+      end
+
+      def set_context a_context
+         @context = a_context
+         if @context.Matrix
+            self.command_cm( *context.Matrix.to_a )
+         end
       end
 
       def replicate_text_state state
@@ -186,11 +208,17 @@ module Origami
          @text_knockout = state.text_knockout
          @text_matrix = state.text_matrix.clone
          @text_line_matrix = state.text_line_matrix.clone
+         @text_prerender_matrix = nil
       end
 
       def text_origin
-         temp_matrix = self.text_matrix * self.coordinate_transform.first
+         temp_matrix = self.text_prerender_matrix
          Point.new( temp_matrix.cell(2,0), temp_matrix.cell(2,1) )
+      end
+
+      def text_prerender_matrix
+         return @text_prerender_matrix unless @text_prerender_matrix.nil?
+         @text_prerender_matrix = self.text_matrix * self.coordinate_transform
       end
 
       def glyph_bbox char
@@ -232,8 +260,7 @@ module Origami
       def text_font_bbox
          bbox = @text_font.bbox
          per_em = @text_font.units_per_em.to_f
-         #APPLOG.warn( bbox.to_s )
-         #APPLOG.warn( bbox.map{|el| el.class } )
+
          x1 = bbox[0].to_f * @text_font_size.to_f / per_em
          y1 = bbox[1].to_f * @text_font_size.to_f / per_em
 
@@ -247,11 +274,15 @@ module Origami
 
       def text_displace_x amount, word_flag = false
          new_amount = ( amount + @text_character_spacing + ( word_flag ? @text_word_spacing : 0 ) ) * @text_horizontal_scaling / 100.0
-         #puts( "Displace: #{amount} -> #{new_amount}, #{word_flag}, #{@text_character_spacing},#{@text_word_spacing}, #{@text_horizontal_scaling / 100.0}")
-         @text_matrix.cell!( 2, 0, @text_matrix.cell( 2, 0 ) + new_amount )
+         a_p = self.text_matrix.transform( Point.new( new_amount, 0 ), :no_translate => true )
+
+         @text_matrix.cell!( 2, 0, @text_matrix.cell( 2, 0 ) + a_p.x )
+         @text_matrix.cell!( 2, 1, @text_matrix.cell( 2, 1 ) + a_p.y )
+         @text_prerender_matrix = nil
       end
 
       def command_BT
+         @text_prerender_matrix = nil
          @text_matrix = TransformMatrix.new( 1,0,0,1,0,0 )
          @text_line_matrix = TransformMatrix.new( 1,0,0,1,0,0 )
       end
@@ -261,6 +292,7 @@ module Origami
       end
 
       def command_ET
+         @text_prerender_matrix = nil
          @text_matrix = nil
          @text_line_matrix = nil
       end
@@ -295,6 +327,7 @@ module Origami
       end
 
       def command_Td point
+         @text_prerender_matrix = nil
          a_matr = TransformMatrix.new( 1,0,0,1,point.x, point.y )
          @text_line_matrix = a_matr * @text_line_matrix
          @text_matrix = @text_line_matrix.clone
@@ -305,6 +338,7 @@ module Origami
       end
 
       def command_Tm *args
+         @text_prerender_matrix = nil
          @text_matrix = TransformMatrix.new( *args )
          @text_line_matrix = TransformMatrix.new( *args )
       end
@@ -320,12 +354,12 @@ module Origami
       end
 
       def command_cm *args
-         @coordinate_transform.clear
-         @coordinate_transform.push( TransformMatrix.new( *args ) )
+         @text_prerender_matrix = nil
+         @coordinate_transform = TransformMatrix.new( *args ) * @coordinate_transform
       end
 
       def resolve point
-         @coordinate_transform.reduce( point ) { |memo, ct| ct.transform( memo ) }
+         @coordinate_transform.transform( point )
       end
    end
 end

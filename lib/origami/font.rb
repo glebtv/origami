@@ -20,6 +20,26 @@
 
 module Origami
 
+   class GlyphResolver
+      def self.build_map!
+         return unless @built.nil?
+         @built = true
+
+         rows = self.get_file.read.split("\n")
+         @map = Hash[ rows.select{|r|  /.*;[0-9A-F]{4}$/ =~ r }.map{|r| r.split(";")}.map{|(n,th)| [n, [ th.to_i(16) ].pack('U') ]} ]
+      end
+
+      def self.lookup_glyph_by_name( name )
+         build_map!
+         @map[ name ]
+      end
+
+      def self.get_file
+         glyph_path = File.join( File.dirname(__FILE__), '../../ref/glyphlist.txt' )
+         file = File.open( glyph_path )
+      end
+   end
+
     #
     # Embedded font stream.
     #
@@ -439,7 +459,7 @@ module Origami
               code = character.unpack1('U*')
               gid = font_file.cmap.unicode.first[ code ]
               glyph = font_file.glyph_outlines.for( gid )
-              APPLOG.warn( "Unable to find glyph for character #{character} in #{self.get_base_font_name}") if glyph.nil?
+              puts( "Unable to find glyph for character #{character} in #{self.get_base_font_name}") if glyph.nil?
               glyph.nil? ? nil : [ glyph.x_min, glyph.y_min, glyph.x_max, glyph.y_max ]
            end
         end
@@ -579,7 +599,7 @@ module Origami
                         if a_base.length > 1
                            newb = ByteString.new( a_base[inc] )
                         else
-                           newb = ByteString.from_int( a_base.first.to_i + inc )
+                           newb = ByteString.from_int( ByteString.new( a_base.first ).to_i + inc )
                         end
                         @cidmap[ cur.value ] = newb
                      end
@@ -805,6 +825,56 @@ module Origami
         class TrueType < Font
             field   :Subtype,               :Type => Name, :Default => :TrueType, :Required => true
             field   :BaseFont,              :Type => Name, :Required => true
+
+            def build_map!
+
+               return unless !@built
+               buckets = []
+               @map = Hash[]
+               @map_type = :identity
+
+               if self.Encoding.is_a?( Origami::Encoding ) && self.Encoding.Differences
+                  last_bucket = nil
+                  self.Encoding.Differences.each do |ent|
+                     if ent.is_a?( ::Integer ) || ent.is_a?( Origami::Integer )
+                        last_bucket = ent.to_i
+                        buckets[ last_bucket ] = []
+                     else
+                        raise "Unexpected non integer in differences" if last_bucket.nil?
+                        raise "Unexpected class #{ent.class.name}, expected name in differences" if !ent.is_a? Origami::Name
+                        buckets[ last_bucket ] << ent.value.to_s
+                     end
+                  end
+               end
+
+               if buckets[1].nil?
+                  return
+               end
+               @map_type = :lookup
+
+               raise "Couldn't find map entry" if buckets[1].nil?
+               fchar = (self.FirstChar || 0 ).to_i
+
+               buckets[1].each_with_index do |chr, idx|
+
+                  @map[ [ fchar + idx ].pack("C") ] = chr
+               end
+               @built = true
+            end
+
+            def decode_text text
+               build_map!
+               if @map_type == :identity
+                  chr = text.unpack('C*').pack('U*')
+               else
+                  text.each_char.map do |letter|
+                     chr = GlyphResolver.lookup_glyph_by_name( @map[ letter ] )
+
+                     #puts "#{text.unpack("C*").first} => #{chr}"
+                     chr.nil? ? "?" : chr
+                  end.join
+               end
+            end
         end
 
         #
@@ -822,7 +892,9 @@ module Origami
 
             def decode_text text
                #raise "Type 3 font unsupported"
-               text.unpack('C*').pack('U*')
+               #chr = text.unpack('C*').pack('U*')
+               #chr =~ /[[:print:]]/ =~ chr ? chr : "?"
+               "?"
             end
 
             def bbox

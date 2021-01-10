@@ -604,14 +604,17 @@ module Origami
             end
 
             def get_text
-               some_text = self.T.to_s.strip
+               some_text = self.T
+               some_text = some_text.nil? ? "" : some_text.to_utf8.strip
                delim = some_text.blank? ? "" : "."
-               some_text = some_text[1...-1] if !some_text.blank?
+
+               #some_text = some_text[1...-1] if !some_text.blank?
 
                a_parent = self.Parent
                while ( a_parent )
-                  more_text = a_parent.T.to_s.strip
-                  more_text = more_text[1...-1] if !more_text.blank?
+                  more_text = a_parent.T
+                  more_text = more_text.nil? ? "" : more_text.to_utf8.strip
+                  #more_text = more_text[1...-1] if !more_text.blank?
                   some_text = more_text + delim + some_text
                   delim = some_text.blank? ? "" : "."
                   a_parent = a_parent.Parent

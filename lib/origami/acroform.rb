@@ -198,7 +198,14 @@ module Origami
         # Returns the (partial) name of the field.
         #
         def name
-            self.T
+            self.T.to_utf8
+        end
+
+        #
+        # Returns title of the field.
+        #
+        def title
+            self.TU.to_utf8
         end
 
         # Determine if field is required

@@ -201,6 +201,20 @@ module Origami
             self.T
         end
 
+        # Determine if field is required
+        # @return [Boolean]
+        def required?
+            # self.Ff & Flags::REQUIRED
+            false
+        end
+
+        # Determine if field is readonly
+        # @return [Boolean]
+        def readonly?
+            # self.Ff & Flags::READONLY
+            false
+        end
+
         def onKeyStroke(action)
             unless action.is_a?(Action)
                 raise TypeError, "An Action object must be passed."

@@ -678,6 +678,13 @@ module Origami
                 field   :Opt,         :Type => Array
                 field   :TI,          :Type => Integer, :Default => 0
                 field   :I,           :Type => Array, :Version => "1.4"
+
+                # Determine if multiple selections is possible
+                # @return [Boolean]
+                def multiple?
+                    # self.Ff & Flags::MULTISELECT
+                    false
+                end
             end
           
             class ComboBox < Choice

@@ -205,7 +205,7 @@ module Origami
         # Returns title of the field.
         #
         def title
-            self.TU.to_utf8
+            self.TU&.to_utf8
         end
 
         # Determine if field is required

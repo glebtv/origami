@@ -101,6 +101,10 @@ module Origami
             dict
         end
 
+        def dump_keys
+           self.keys.map{|k| k.value}
+        end
+
         def to_s(indent: 1, tab: "\t", eol: $/) #:nodoc:
             nl = eol
             tab, nl = '', '' if indent == 0

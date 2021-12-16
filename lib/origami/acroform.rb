@@ -187,6 +187,30 @@ module Origami
             self
         end
 
+        def check_field_flag flag
+           ( ( self.Ff || 0 ) & flag ) != 0
+        end
+        
+        def required?
+           check_field_flag Flags::REQUIRED
+        end
+
+        def readonly?
+           check_field_flag Flags::READONLY
+        end
+
+        def read_only?
+           readonly?
+        end
+
+        def noexport?
+           check_field_flag Flags::NOEXPORT
+        end
+
+        def no_export?
+           noexport?
+        end
+
         #
         # Sets the (partial) name of the field.
         #

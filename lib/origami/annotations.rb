@@ -29,12 +29,12 @@ module Origami
     #
     class Annotation < Dictionary
         include StandardObject
-        
+
         #
         # An AppearanceStream is a FormXObject.
         #
         class AppearanceStream < Graphics::FormXObject ; end
-    
+
         #
         # Appearance Dictionary of an Annotation.
         #
@@ -51,7 +51,7 @@ module Origami
         #
         class AdditionalActions < Dictionary
             include StandardObject
-          
+
             field   :E,             :Type => Action, :Version => "1.2" # Mouse Enter
             field   :X,             :Type => Action, :Version => "1.2" # Mouse Exit
             field   :D,             :Type => Action, :Version => "1.2" # Mouse Down
@@ -104,58 +104,58 @@ module Origami
         end
 
         module Triggerable
-          
-            def onMouseOver(action)        
+
+            def onMouseOver(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.E = action
             end
-          
-            def onMouseOut(action)        
+
+            def onMouseOut(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.X = action
             end
-          
-            def onMouseDown(action)        
+
+            def onMouseDown(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.D = action
             end
-          
-            def onMouseUp(action)        
+
+            def onMouseUp(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.U = action
             end
-          
-            def onFocus(action)        
+
+            def onFocus(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.Fo = action
             end
-          
-            def onBlur(action)        
+
+            def onBlur(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.Bl = action
             end
-          
-            def onPageOpen(action)        
+
+            def onPageOpen(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.PO = action
             end
-          
-            def onPageClose(action)        
+
+            def onPageClose(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.PC = action
             end
 
-            def onPageVisible(action)        
+            def onPageVisible(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.PV = action
             end
-          
-            def onPageInvisible(action)        
+
+            def onPageInvisible(action)
                 self.AA ||= AdditionalActions.new
                 self.AA.PI = action
             end
         end
-    
+
         #
         # Annotation flags
         #
@@ -189,7 +189,7 @@ module Origami
 
         class BorderStyle < Dictionary
             include StandardObject
-      
+
             SOLID       = :S
             DASHED      = :D
             BEVELED     = :B
@@ -211,10 +211,10 @@ module Origami
             field   :S,               :Type => Name, :Default => NONE
             field   :I,               :Type => Integer, :Default => 0
         end
-    
+
         class AppearanceCharacteristics < Dictionary
             include StandardObject
-          
+
             module CaptionStyle
                 CAPTION_ONLY     = 0
                 ICON_ONLY        = 1
@@ -224,7 +224,7 @@ module Origami
                 CAPTION_LEFT     = 5
                 CAPTION_OVERLAID = 6
             end
-        
+
             field   :R,               :Type => Integer, :Default => 0
             field   :BC,              :Type => Array.of(Number)
             field   :BG,              :Type => Array.of(Number)
@@ -237,21 +237,21 @@ module Origami
             field   :IF,              :Type => Dictionary
             field   :TP,              :Type => Integer, :Default => CaptionStyle::CAPTION_ONLY
         end
-    
+
         class Shape < Annotation
             include Markup
 
             field   :Subtype,         :Type => Name, :Required => true
-            field   :BS,              :Type => BorderStyle 
+            field   :BS,              :Type => BorderStyle
             field   :IC,              :Type => Array.of(Number)
             field   :BE,              :Type => BorderEffect, :Version => "1.5"
             field   :RD,              :Type => Rectangle, :Version => "1.5"
         end
-    
+
         class Square < Shape
             field   :Subtype,         :Type => Name, :Default => :Square, :Required => true
         end
-    
+
         class Circle < Shape
             field   :Subtype,         :Type => Name, :Default => :Circle, :Required => true
         end
@@ -281,7 +281,7 @@ module Origami
             def pre_build
                 model = self.StateModel
                 state = self.State
-                
+
                 case model
                 when "Marked"
                     self.State = "Unmarked" if state.nil?
@@ -317,12 +317,12 @@ module Origami
             field   :BS,              :Type => BorderStyle, :Version => "1.6"
             field   :LE,              :Type => Name, :Default => :None, :Version => "1.6"
         end
-    
+
         #
         # Class representing an link annotation.
         #
         class Link < Annotation
-          
+
             #
             # The annotations highlighting mode.
             # The visual effect to be used when the mouse button is pressed or held down inside its active area.
@@ -330,13 +330,13 @@ module Origami
             module Highlight
                 # No highlighting
                 NONE = :N
-                
-                # Invert the contents of the annotation rectangle. 
+
+                # Invert the contents of the annotation rectangle.
                 INVERT = :I
-                
-                # Invert the annotations border. 
+
+                # Invert the annotations border.
                 OUTLINE = :O
-                
+
                 # Display the annotation as if it were being pushed below the surface of the page
                 PUSH = :P
             end
@@ -349,7 +349,7 @@ module Origami
             field   :QuadPoints,          :Type => Array.of(Number), :Version => "1.6"
             field   :BS,                  :Type => BorderStyle, :Version => "1.6"
         end
-    
+
         #
         # Class representing a file attachment annotation.
         #
@@ -368,7 +368,7 @@ module Origami
             field   :FS,                  :Type => FileSpec, :Required => true
             field   :Name,                :Type => Name, :Default => Icons::PUSHPIN
         end
-    
+
         #
         # Class representing a screen Annotation.
         # A screen annotation specifies a region of a page upon which media clips may be played. It also serves as an object from which actions can be triggered.
@@ -385,7 +385,7 @@ module Origami
 
         class Sound < Annotation
             include Markup
-          
+
             module Icons
                 SPEAKER = :Speaker
                 MIC     = :Mic
@@ -397,28 +397,28 @@ module Origami
         end
 
         class RichMedia < Annotation
-          
+
             class Position < Dictionary
                 include StandardObject
 
                 NEAR    = :Near
                 CENTER  = :Center
                 FAR     = :Far
-                
-                field   :Type,              :Type => Name, :Default => :RichMediaPosition, :Version => "1.7", :ExtensionLevel => 3 
-                field   :HAlign,            :Type => Name, :Default => FAR, :Version => "1.7", :ExtensionLevel => 3 
-                field   :VAlign,            :Type => Name, :Default => NEAR, :Version => "1.7", :ExtensionLevel => 3 
-                field   :HOffset,           :Type => Number, :Default => 18, :Version => "1.7", :ExtensionLevel => 3 
-                field   :VOffset,           :Type => Number, :Default => 18, :Version => "1.7", :ExtensionLevel => 3 
+
+                field   :Type,              :Type => Name, :Default => :RichMediaPosition, :Version => "1.7", :ExtensionLevel => 3
+                field   :HAlign,            :Type => Name, :Default => FAR, :Version => "1.7", :ExtensionLevel => 3
+                field   :VAlign,            :Type => Name, :Default => NEAR, :Version => "1.7", :ExtensionLevel => 3
+                field   :HOffset,           :Type => Number, :Default => 18, :Version => "1.7", :ExtensionLevel => 3
+                field   :VOffset,           :Type => Number, :Default => 18, :Version => "1.7", :ExtensionLevel => 3
             end
 
             class Window < Dictionary
                 include StandardObject
 
-                field   :Type,              :Type => Name, :Default => :RichMediaWindow, :Version => "1.7", :ExtensionLevel => 3 
+                field   :Type,              :Type => Name, :Default => :RichMediaWindow, :Version => "1.7", :ExtensionLevel => 3
                 field   :Width,             :Type => Dictionary, :Default => {:Default => 288, :Max => 576, :Min => 72}, :Version => "1.7", :ExtensionLevel => 3
                 field   :Height,            :Type => Dictionary, :Default => {:Default => 216, :Max => 432, :Min => 72}, :Version => "1.7", :ExtensionLevel => 3
-                field   :Position,          :Type => Position, :Version => "1.7", :ExtensionLevel => 3  
+                field   :Position,          :Type => Position, :Version => "1.7", :ExtensionLevel => 3
             end
 
             class Presentation < Dictionary
@@ -483,15 +483,15 @@ module Origami
                 field   :Activation,        :Type => Activation, :Version => "1.7", :ExtensionLevel => 3
                 field   :Deactivation,      :Type => Deactivation, :Version => "1.7", :ExtensionLevel => 3
             end
-          
+
             class CuePoint < Dictionary
                 include StandardObject
 
                 NAVIGATION  = :Navigation
                 EVENT       = :Event
 
-                field   :Type,              :Type => Name, :Default => :CuePoint, :Version => "1.7", :ExtensionLevel => 3 
-                field   :Subtype,           :Type => Name, :Version => "1.7", :ExtensionLevel => 3 
+                field   :Type,              :Type => Name, :Default => :CuePoint, :Version => "1.7", :ExtensionLevel => 3
+                field   :Subtype,           :Type => Name, :Version => "1.7", :ExtensionLevel => 3
                 field   :Name,              :Type => String, :Version => "1.7", :ExtensionLevel => 3, :Required => true
                 field   :Time,              :Type => Number, :Version => "1.7", :ExtensionLevel => 3, :Required => true
                 field   :A,                 :Type => Action, :Version => "1.7", :ExtensionLevel => 3, :Required => true
@@ -507,12 +507,12 @@ module Origami
                   MATERIAL    = :Material
                 end
 
-                field   :Type,              :Type => Name, :Default => :RichMediaParams, :Version => "1.7", :ExtensionLevel => 3 
-                field   :FlashVars,         :Type => [String, Stream], :Version => "1.7", :ExtensionLevel => 3  
-                field   :Binding,           :Type => Name, :Default => Binding::NONE, :Version => "1.7", :ExtensionLevel => 3 
-                field   :BindingMaterialName, :Type => String, :Version => "1.7", :ExtensionLevel => 3 
-                field   :CuePoints,         :Type => Array.of(CuePoint), :Default => [], :Version => "1.7", :ExtensionLevel => 3  
-                field   :Settings,          :Type => [String, Stream], :Version => "1.7", :ExtensionLevel => 3  
+                field   :Type,              :Type => Name, :Default => :RichMediaParams, :Version => "1.7", :ExtensionLevel => 3
+                field   :FlashVars,         :Type => [String, Stream], :Version => "1.7", :ExtensionLevel => 3
+                field   :Binding,           :Type => Name, :Default => Binding::NONE, :Version => "1.7", :ExtensionLevel => 3
+                field   :BindingMaterialName, :Type => String, :Version => "1.7", :ExtensionLevel => 3
+                field   :CuePoints,         :Type => Array.of(CuePoint), :Default => [], :Version => "1.7", :ExtensionLevel => 3
+                field   :Settings,          :Type => [String, Stream], :Version => "1.7", :ExtensionLevel => 3
             end
 
             class Instance < Dictionary
@@ -522,11 +522,11 @@ module Origami
                 FLASH   = :Flash
                 SOUND   = :Sound
                 VIDEO   = :Video
-                
-                field   :Type,              :Type => Name, :Default => :RichMediaInstance, :Version => "1.7", :ExtensionLevel => 3 
-                field   :Subtype,           :Type => Name, :Version => "1.7", :ExtensionLevel => 3 
-                field   :Params,            :Type => Parameters, :Version => "1.7", :ExtensionLevel => 3 
-                field   :Asset,             :Type => FileSpec, :Version => "1.7", :ExtensionLevel => 3 
+
+                field   :Type,              :Type => Name, :Default => :RichMediaInstance, :Version => "1.7", :ExtensionLevel => 3
+                field   :Subtype,           :Type => Name, :Version => "1.7", :ExtensionLevel => 3
+                field   :Params,            :Type => Parameters, :Version => "1.7", :ExtensionLevel => 3
+                field   :Asset,             :Type => FileSpec, :Version => "1.7", :ExtensionLevel => 3
             end
 
             class Configuration < Dictionary
@@ -537,19 +537,19 @@ module Origami
                 SOUND   = :Sound
                 VIDEO   = :Video
 
-                field   :Type,              :Type => Name, :Default => :RichMediaConfiguration, :Version => "1.7", :ExtensionLevel => 3 
-                field   :Subtype,           :Type => Name, :Version => "1.7", :ExtensionLevel => 3 
-                field   :Name,              :Type => String, :Version => "1.7", :ExtensionLevel => 3 
-                field   :Instances,         :Type => Array.of(Instance), :Version => "1.7", :ExtensionLevel => 3 
+                field   :Type,              :Type => Name, :Default => :RichMediaConfiguration, :Version => "1.7", :ExtensionLevel => 3
+                field   :Subtype,           :Type => Name, :Version => "1.7", :ExtensionLevel => 3
+                field   :Name,              :Type => String, :Version => "1.7", :ExtensionLevel => 3
+                field   :Instances,         :Type => Array.of(Instance), :Version => "1.7", :ExtensionLevel => 3
             end
 
             class Content < Dictionary
                 include StandardObject
 
-                field   :Type,              :Type => Name, :Default => :RichMediaContent, :Version => "1.7", :ExtensionLevel => 3 
-                field   :Assets,            :Type => Dictionary, :Version => "1.7", :ExtensionLevel => 3 
-                field   :Configurations,    :Type => Array.of(Configuration), :Version => "1.7", :ExtensionLevel => 3 
-                field   :Views,             :Type => Array, :Version => "1.7", :ExtensionLevel => 3 
+                field   :Type,              :Type => Name, :Default => :RichMediaContent, :Version => "1.7", :ExtensionLevel => 3
+                field   :Assets,            :Type => Dictionary, :Version => "1.7", :ExtensionLevel => 3
+                field   :Configurations,    :Type => Array.of(Configuration), :Version => "1.7", :ExtensionLevel => 3
+                field   :Views,             :Type => Array, :Version => "1.7", :ExtensionLevel => 3
             end
 
             #
@@ -562,93 +562,133 @@ module Origami
 
         # Added in ExtensionLevel 3.
         class Projection < Annotation; end
-    
+
         #
         # Class representing a widget Annotation.
-        # Interactive forms use widget annotations to represent the appearance of fields and to manage user interactions. 
+        # Interactive forms use widget annotations to represent the appearance of fields and to manage user interactions.
         #
         class Widget < Annotation
             include Field
             include Triggerable
-     
+
             module Highlight
                 # No highlighting
                 NONE    = :N
-                
-                # Invert the contents of the annotation rectangle. 
+
+                # Invert the contents of the annotation rectangle.
                 INVERT  = :I
-                
-                # Invert the annotations border. 
+
+                # Invert the annotations border.
                 OUTLINE = :O
-                
+
                 # Display the annotation as if it were being pushed below the surface of the page
                 PUSH    = :P
-                
+
                 # Same as P.
                 TOGGLE  = :T
             end
-      
+
             field   :Subtype,           :Type => Name, :Default => :Widget, :Required => true
             field   :H,                 :Type => Name, :Default => Highlight::INVERT
             field   :MK,                :Type => AppearanceCharacteristics
             field   :A,                 :Type => Action, :Version => "1.1"
             field   :AA,                :Type => AdditionalActions, :Version => "1.2"
             field   :BS,                :Type => BorderStyle, :Version => "1.2"
-          
-            def onActivate(action)        
+
+            def onActivate(action)
                 unless action.is_a?(Action)
                     raise TypeError, "An Action object must be passed."
                 end
-                
+
                 self.A = action
             end
-        
+
+            def get_text
+               some_text = self.T
+               some_text = some_text.nil? ? "" : some_text.to_utf8.strip
+               delim = some_text.blank? ? "" : "."
+
+               #some_text = some_text[1...-1] if !some_text.blank?
+
+               a_parent = self.Parent
+               while ( a_parent )
+                  more_text = a_parent.T
+                  more_text = more_text.nil? ? "" : more_text.to_utf8.strip
+                  #more_text = more_text[1...-1] if !more_text.blank?
+                  some_text = more_text + delim + some_text
+                  delim = some_text.blank? ? "" : "."
+                  a_parent = a_parent.Parent
+               end
+
+               some_text
+            end
+
+            def get_field_type
+               a_ft = self.FT
+               a_parent = self.Parent
+               while ( a_ft.nil? && !a_parent.nil? )
+                  a_ft = a_parent.FT
+                  a_parent = a_parent.Parent
+               end
+               a_ft
+            end
+
+            def get_options
+               a_opt = self.Opt
+               a_parent = self.Parent
+               while ( a_opt.nil? && !a_parent.nil? )
+                  a_opt = a_parent.FT
+                  a_parent = a_parent.Parent
+               end
+               a_opt
+            end
+
             class Button < Widget
-            
+
                 module Flags
                   NOTOGGLETOOFF     = 1 << 14
                   RADIO             = 1 << 15
                   PUSHBUTTON        = 1 << 16
                   RADIOSINUNISON    = 1 << 26
                 end
-           
+
                 field   :FT,                :Type => Name, :Default => Field::Type::BUTTON, :Required => true
             end
-          
+
             class PushButton < Button
-            
+
                 def pre_build
                     self.Ff ||= 0
                     self.Ff |= Button::Flags::PUSHBUTTON
-                  
+
                     super
                 end
             end
-          
+
             class CheckBox < Button
-            
+
                 def pre_build
                     self.Ff ||= 0
-                  
+
                     self.Ff &= ~Button::Flags::RADIO
                     self.Ff &= ~Button::Flags::PUSHBUTTON
-                  
+
                     super
                 end
             end
-          
+
             class Radio < Button
-            
+
                 def pre_build
                     self.Ff ||= 0
-                  
+
                     self.Ff &= ~Button::Flags::PUSHBUTTON
                     self.Ff |= Button::Flags::RADIO
-                  
+
                     super
                 end
             end
-          
+
             class Text < Widget
                 module Flags
                     MULTILINE       = 1 << 12
@@ -659,11 +699,11 @@ module Origami
                     COMB            = 1 << 24
                     RICHTEXT        = 1 << 25
                 end
-            
+
                 field   :FT,          :Type => Name, :Default => Field::Type::TEXT, :Required => true
                 field   :MaxLen,      :Type => Integer
             end
-          
+
             class Choice < Widget
                 module Flags
                     COMBO             = 1 << 17
@@ -679,27 +719,27 @@ module Origami
                 field   :TI,          :Type => Integer, :Default => 0
                 field   :I,           :Type => Array, :Version => "1.4"
             end
-          
+
             class ComboBox < Choice
-            
+
                 def pre_build
                     self.Ff ||= 0
                     self.Ff |= Choice::Flags::COMBO
-                  
+
                     super
                 end
             end
-          
+
             class ListBox < Choice
-            
+
                 def pre_build
                     self.Ff ||= 0
-                    self.Ff &= ~Choice::Flags::COMBO 
-                  
+                    self.Ff &= ~Choice::Flags::COMBO
+
                     super
                 end
             end
-          
+
             class Signature < Widget
                 field   :FT,          :Type => Name, :Default => Field::Type::SIGNATURE
                 field   :Lock,        :Type => SignatureLock, :Version => "1.5"

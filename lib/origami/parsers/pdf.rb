@@ -85,6 +85,7 @@ module Origami
 
             def cast_trailer_objects(pdf) #:nodoc:
                 trailer = pdf.trailer
+                return if trailer.nil?
 
                 if trailer[:Root].is_a?(Reference)
                     pdf.cast_object(trailer[:Root], Catalog)

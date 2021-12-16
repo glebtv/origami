@@ -15,7 +15,7 @@ Gem::Specification.new do |s|
                         'README.md',
                         'CHANGELOG.md',
                         'COPYING.LESSER',
-                        "{lib,bin,test,examples}/**/*",
+                        "{lib,bin,test,examples,ref}/**/*",
                         "bin/shell/.irbrc"
                     ]
 

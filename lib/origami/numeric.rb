@@ -122,6 +122,10 @@ module Origami
             int
         end
 
+        def to_f
+           self.value.to_f
+        end
+
         def to_s(eol: $/) #:nodoc:
             super(self.value.to_s, eol: eol)
         end
@@ -169,6 +173,10 @@ module Origami
             real.file_offset = offset
 
             real
+        end
+
+        def to_i
+           self.value.to_i
         end
 
         alias value to_f

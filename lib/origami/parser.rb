@@ -57,7 +57,7 @@ module Origami
             #Default options values
             @options =
             {
-                verbosity: VERBOSE_INFO, # Verbose level.
+                verbosity: VERBOSE_DEBUG, # Verbose level.
                 ignore_errors: true,     # Try to keep on parsing when errors occur.
                 callback: Proc.new {},   # Callback procedure whenever a structure is read.
                 logger: STDERR,          # Where to output parser messages.

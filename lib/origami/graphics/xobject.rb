@@ -72,13 +72,22 @@ module Origami
             @instructions
         end
 
+        def draw_stream(name)
+              load! if @instructions.nil?
+
+              @instructions << PDF::Instruction.new(name)
+        end
+
         def draw_image(name, attr = {})
-            load!
+            load! if @instructions.nil?
 
             x, y = attr[:x], attr[:y]
 
+            w = (attr[:w] || 300)
+            h = (attr[:h] || 300)
+
             @instructions << PDF::Instruction.new('q')
-            @instructions << PDF::Instruction.new('cm', (attr[:w] || 300), 0, 0, (attr[:h] || 300), x, y)
+            @instructions << PDF::Instruction.new('cm', w, 0, 0, h, x, y - h)
             @instructions << PDF::Instruction.new('Do', name)
             @instructions << PDF::Instruction.new('Q')
         end
@@ -460,8 +469,10 @@ module Origami
         end
 
         # TODO :nodoc:
-        def draw_image
-            raise NotImplementedError
+        def draw_image(name, attr = {})
+            imageContents = Origami::ContentStream.new
+            imageContents.draw_image(name, attr);
+            self.setContents([self.Contents, imageContents])
         end
 
         # See ContentStream#draw_line.
@@ -472,6 +483,10 @@ module Origami
         # See ContentStream#draw_polygon.
         def draw_polygon(coords = [], attr = {})
             last_content_stream.draw_polygon(coords, attr); self
+        end
+
+        def draw_stream(s)
+            last_content_stream.draw_rectangle(s); self
         end
 
         # See ContentStream#draw_rectangle.
@@ -638,6 +653,7 @@ module Origami
             field   :Intent,            :Type => Name, :Version => "1.1"
             field   :ImageMask,         :Type => Boolean, :Default => false
             field   :Mask,              :Type => [ ImageXObject, Array.of(Integer) ], :Version => "1.3"
+            field   :ColorTransform,    :Type => Integer
             field   :Decode,            :Type => Array.of(Number)
             field   :Interpolate,       :Type => Boolean, :Default => false
             field   :Alternates,        :Type => Array, :Version => "1.3"
@@ -652,6 +668,11 @@ module Origami
             field   :OC,                :Type => Dictionary, :Version => "1.5"
             field   :Measure,           :Type => Dictionary, :Version => "1.7", :ExtensionLevel => 3
             field   :PtData,            :Type => Dictionary, :Version => "1.7", :ExtensionLevel => 3
+
+             JPEG_BLOCKS = [
+              0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE,
+              0xCF
+            ].freeze
 
             def self.from_image_file(path, format = nil)
                 if path.respond_to?(:read)
@@ -668,6 +689,32 @@ module Origami
                 when 'jpg', 'jpeg', 'jpe', 'jif', 'jfif', 'jfi'
                     image.setFilter :DCTDecode
                     image.encoded_data = data
+
+                    sio = StringIO.new(data)
+                    sio.binmode
+                    c_marker = 0xff
+                    sio.seek(2)
+                    loop do
+                      marker, code, length = sio.read(4).unpack('CCn')
+                      raise FormatError, 'bad JPEG marker' if marker != c_marker
+                      if JPEG_BLOCKS.include?(code)
+                        image.BitsPerComponent, image.Height, image.Width, channels = sio.read(6).unpack('CnnC')
+                        image.ColorSpace =
+                          case channels
+                          when 1
+                            Origami::Graphics::Color::Space::DEVICE_GRAY
+                          when 3
+                            Origami::Graphics::Color::Space::DEVICE_RGB
+                          when 4
+                            Origami::Graphics::Color::Space::DEVICE_CMYK
+                          else
+                            raise ArgumentError, 'JPG uses an unsupported number of channels'
+                          end
+                        break
+                      end
+
+                      sio.seek(length - 2, IO::SEEK_CUR)
+                    end
 
                 when 'jp2','jpx','j2k','jpf','jpm','mj2'
                     image.setFilter :JPXDecode
